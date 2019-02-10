@@ -22,8 +22,7 @@ import itertools
 import glob
 import networkx as nx
 import community
-import re
-
+from decimal import Decimal
 from optparse import OptionParser
 import json
 import os    
@@ -32,8 +31,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from string import punctuation
 from collections import Counter
 from pybtex.database.input import bibtex
-from locale import format_string
-from preprocess import *
+from preprocess import extract_article_info
 
 
 
@@ -44,11 +42,11 @@ def import_bibs(filelist):
     #take a list of files in bibtex format and returns a list of articles
     articles = []
     for filename in filenames:
-        print('Importing from %s' % filename)
+        print('Importing from ' + filename)
         try:
             bibdata = parser.parse_file(filename)
         except:
-            print('Error with the file "%s"' % filename)
+            print('Error with the file ' + filename)
         else:
             for bib_id in bibdata.entries:
                 b = bibdata.entries[bib_id].fields
@@ -135,6 +133,167 @@ def make_filename(string):
     string = string.lower()
     return string
 
+def get_clique_words(articles,cliques,stopword_list=[]):
+    #This extracts the most common words in a clique based on articles that cite references in the clique.
+    #Note that this is the most frequent, not the distinquishing words (i.e. not uniquely occuring in the clique.)
+    stopwords= ['do','and', 'among', 'findings', 'is', 'in', 'results', 'an', 'as', 'are', 'only', 'number',
+              'have', 'using', 'research', 'find', 'from', 'for', 'to', 'with', 'than', 'since','most',
+             'also', 'which', 'between', 'has', 'more', 'be', 'we', 'that', 'but', 'it', 'how',
+             'they', 'not', 'article', 'on', 'data', 'by', 'a', 'both', 'this', 'of', 'study', 'analysis',
+             'their', 'these', 'social', 'the', 'or','may', 'whether', 'them'', only',
+             'implication','our','less','who','all','based','less','was',
+           'its','new','one','use','these','focus','result','test',
+           'finding','relationship','different','their','more','between',
+           'article','study','paper','research','sample','effect','case','argue','three',
+           'affect','extent','when','implications','been','data','even','examine','toward',
+           'effects','analysis','into','support','show','within','what','were',
+           'associated','suggest','those','over','however','while','indicate','about',
+           'such','other','because','can','both','n','find','using','have','not',
+           'some','likely','findings','but','results','among','has','how','which',
+           'they','be','i','two','than','how','which','be','across','also','it','through','at']
+    stopword_list = stopword_list + stopwords
+    
+    clique_abstracts = {}
+    for article in articles:
+        ac = article_clique(article, cliques)
+        if len(article['abstract'])>2:
+            words = article['abstract']
+        else:
+            words = article['title']
+        try:
+            clique_abstracts[ac].append(words)
+        except Exception:
+            clique_abstracts[ac] = [words]
+            
+    clique_words = {clique: keywords(clique_abstracts[clique],stopword_list) for clique in clique_abstracts}
+    return clique_words
+def cite_link(cite):
+    link_name = 'refs/%s' % make_filename(cite)
+    link = '''<a href='%s.html' target="_blank">%s</a>''' % (link_name,cite)
+    return link
+def clique_report(G, articles, cliques, no_of_cites=20, output_directory='./out/'):
+    #This functions does too much.
+    node_count = len(G.nodes())
+    #gather node, clique and edge information
+    nodes = list(G.nodes(data=True))
+    node_dict = {node[0]:{'freq':node[1]['freq'], 'clique':node[1]['group'], 'abstract':node[1]['abstract']} for node in nodes}
+    node_min = sorted([node_dict[node]['freq'] for node in node_dict])[0]
+    #Build a dictionary of cliques listing articles with frequencies
+    clique_references = {}
+    for node in node_dict:
+        clique = node_dict[node]['clique']
+        freq = node_dict[node]['freq']
+        try:
+            clique_references[clique][node] = freq
+        except:
+            clique_references[clique] = {node : freq }
+    clique_journals = journal_cliques(articles, cliques)
+
+    #set up HTML
+    html_preface = '''<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+		<style type="text/css">
+		body {
+			background-color:#D9D9D9;
+			text-rendering:optimizeLegibility;
+			color:#222;
+			margin-left:10%;
+			font-family: Verdana, sans-serif;
+                       font-size:12px;
+			text-align:left;
+                       width:800px;
+			}
+		h1 {
+			font-weight:normal;
+			font-size:18px;
+			margin-left:0px;
+			}
+                h2 {
+			font-weight: normal;
+			font-size: 14px;
+			margin-left: 0px;
+			}
+		p {
+			font-size:12px;
+			font-weight:normal;
+			line-height:1.5;
+			}
+                 table {
+    font-size:12px;
+}
+		</style> <body>'''
+    html_suffix = r'''<p>Powered by <href='https://github.com/nealcaren/RefCliq' rarget="_blank">Refcliq<.</body></html>'''
+    table_header = [['<b>Name</b>','','<b>Centrality</b>','<b>Count</b>','<b>Keywords</b>']]
+
+
+    reference_location = os.path.join(output_directory,'refs')
+    for dir_name in [output_directory,reference_location]:
+        try:
+            os.stat(dir_name)
+        except:
+            os.mkdir(dir_name)
+
+    years = sorted([article['year'] for article in articles])
+
+    outfile_name = os.path.join('%s' % output_directory,'index.html')
+    outfile = open(outfile_name,'w')
+    outfile.write (html_preface)
+    journals = journal_report(articles)
+    outfile.write('<h1>Cluster analysis of %s articles ' % thous(len(articles)) )
+    outfile.write('based on %s references cited at least %s times.' % (thous(len(G.nodes())) , node_min ) )
+    outfile.write('<h1>Major Journals: %s\n ' % journals)
+    outfile.write('<h1>Years: %s-%s\n ' % (years[0],years[-1]))
+    outfile.write('<h1>Clusters:' )
+    stopword_list = stopwords(articles)    
+    clique_words = get_clique_words(articles,cliques ,stopword_list)
+    reverse_directory = make_reverse_directory(articles)
+
+    #Quick hack to figure out which are the biggest cliques and print(in reverse order)
+    clique_size = {}
+    for clique in clique_references:
+        for ref in clique_references[clique]:
+            clique_size[clique] = clique_size.get(clique,0) + clique_references[clique][ref]
+    
+    #Hack to put unsorted hack last:
+    clique_size['-1'] = 0
+    
+    clique_counter = 0
+    for clique in  sorted(clique_size, key=clique_size.get, reverse=True):
+        clique_members= [node for node in node_dict if node_dict[node]['clique']==clique]
+        c=G.subgraph(clique_members)
+        bc = nx.betweenness_centrality(c, normalized=True, weight='freq')
+        vocab = ', '.join(clique_words.get(clique,''))
+        table_text = []
+        try:
+            journals = ', '.join(clique_journals[clique])
+        except:
+            journals = 'None'
+
+        if int(clique) >= -2:
+            if int(clique) == -1:
+                vocab = "Cites that didn't cluster well."
+
+            clique_counter = clique_counter +1
+
+            outfile.write('<h2> %s   \n\n' % vocab)
+            outfile.write('<br><b>Journals:</b> %s \n </h2>' % journals.replace(r'\&','&') )
+
+            sorted_clique = sorted(clique_references[clique], key=clique_references[clique].get, reverse=True)
+            if int(clique)> - 1:
+                sorted_clique = sorted(bc, key=bc.get, reverse=True)
+
+            output_cites = [cite for cite in sorted_clique[:no_of_cites] if node_dict[cite]['freq'] > 4]
+            output_cites.sort()
+            
+            for cite in sorted(output_cites):
+                write_reverse_directory(cite,reverse_directory[cite],output_directory,stopword_list,articles)
+
+            table_text = table_header + [[str(cite_link(cite)+' '*40)[:130],'','%.2f' % bc[cite], node_dict[cite]['freq'],', '.join(cite_keywords(cite, stopword_list, articles, n = 5))] for cite in sorted_clique[:no_of_cites]]
+            table_text= html_table(table_text)
+            outfile.write(table_text)
+            outfile.write('<p>')
+    print('Report printed on %s nodes, %s edges and %s cliques to %s.' % (thous(len(G.nodes())), thous(len(G.edges())), clique_counter, output_directory))
+    outfile.write (html_suffix)
+    outfile.close()
 
 def make_reverse_directory(articles):
     #creates reverse directory for all articles that cite a specific article:
@@ -181,7 +340,7 @@ def write_reverse_directory(cite,cited_bys,output_directory,stopword_list, artic
     font-size:12px;
 }
 		</style> <body>'''
-    html_suffix = r'''<p>Powered by <href='https://github.com/nealcaren/RefCliq' rarget="_blank">Refcliq<.</body></html>'''
+    html_suffix = '<p>Powered by <href="https://github.com/nealcaren/RefCliq" rarget="_blank">Refcliq</body></html>'
     filename = make_filename(cite)
     with open('%s/refs/%s.html' % (output_directory,filename), 'w') as output:
         output.write(html_preface)
@@ -213,7 +372,7 @@ def create_edge_list(articles, most_cited):
     return pairs
 
 def top_edges(pairs, threshold = 2):
-    # note that it doesn't just retur n top edges, but actually returns all the edges that have
+    # note that it doesn't just return n top edges, but actually returns all the edges that have
     # an edge weight equal to or greater than the nth edge
 
     #most_paired = sorted(pairs, key=pairs.get, reverse=True)[:n]
@@ -417,40 +576,6 @@ def journal_cliques(articles, cliques):
 
 
 
-def get_clique_words(articles,cliques,stopword_list=[]):
-    #This extracts the most common words in a clique based on articles that cite references in the clique.
-    #Note that this is the most frequent, not the distinquishing words (i.e. not uniquely occuring in the clique.)
-    stopwords= ['do','and', 'among', 'findings', 'is', 'in', 'results', 'an', 'as', 'are', 'only', 'number',
-              'have', 'using', 'research', 'find', 'from', 'for', 'to', 'with', 'than', 'since','most',
-             'also', 'which', 'between', 'has', 'more', 'be', 'we', 'that', 'but', 'it', 'how',
-             'they', 'not', 'article', 'on', 'data', 'by', 'a', 'both', 'this', 'of', 'study', 'analysis',
-             'their', 'these', 'social', 'the', 'or','may', 'whether', 'them'', only',
-             'implication','our','less','who','all','based','less','was',
-           'its','new','one','use','these','focus','result','test',
-           'finding','relationship','different','their','more','between',
-           'article','study','paper','research','sample','effect','case','argue','three',
-           'affect','extent','when','implications','been','data','even','examine','toward',
-           'effects','analysis','into','support','show','within','what','were',
-           'associated','suggest','those','over','however','while','indicate','about',
-           'such','other','because','can','both','n','find','using','have','not',
-           'some','likely','findings','but','results','among','has','how','which',
-           'they','be','i','two','than','how','which','be','across','also','it','through','at']
-    stopword_list = stopword_list + stopwords
-    
-    clique_abstracts = {}
-    for article in articles:
-        ac = article_clique(article, cliques)
-        if len(article['abstract'])>2:
-            words = article['abstract']
-        else:
-            words = article['title']
-        try:
-            clique_abstracts[ac].append(words)
-        except Exception:
-            clique_abstracts[ac] = [words]
-            
-    clique_words = {clique: keywords(clique_abstracts[clique],stopword_list) for clique in clique_abstracts}
-    return clique_words
 
 def journal_report(articles):
     #Could I have a string with all the journals and how many items from each?
@@ -462,146 +587,10 @@ def journal_report(articles):
         journals = []
     return ', '.join(journals)
 
-def thous(x, sep=',', dot='.'):
-    #make numbers pretty
-    num, _, frac = str(x).partition(dot)
-    num = re.sub(r'(\d{3})(?=\d)', r'\1'+sep, num[::-1])[::-1]
-    if frac:
-        num += dot + frac
-    return num
-
-def clique_report(G, articles, cliques, no_of_cites=20, output_directory='.'):
-    #This functions does too much.
-    node_count = len(G.nodes())
-    #gather node, clique and edge information
-    nodes = list(G.nodes(data=True))
-    node_dict = {node[0]:{'freq':node[1]['freq'], 'clique':node[1]['group'], 'abstract':node[1]['abstract']} for node in nodes}
-    node_min = sorted([node_dict[node]['freq'] for node in node_dict])[0]
-    #Build a dictionary of cliques listing articles with frequencies
-    clique_references = {}
-    for node in node_dict:
-        clique = node_dict[node]['clique']
-        freq = node_dict[node]['freq']
-        try:
-            clique_references[clique][node] = freq
-        except:
-            clique_references[clique] = {node : freq }
-    clique_journals = journal_cliques(articles, cliques)
-
-    #set up HTML
-    html_preface = '''<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
-		<style type="text/css">
-		body {
-			background-color:#D9D9D9;
-			text-rendering:optimizeLegibility;
-			color:#222;
-			margin-left:10%;
-			font-family: Verdana, sans-serif;
-                       font-size:12px;
-			text-align:left;
-                       width:800px;
-			}
-		h1 {
-			font-weight:normal;
-			font-size:18px;
-			margin-left:0px;
-			}
-                h2 {
-			font-weight: normal;
-			font-size: 14px;
-			margin-left: 0px;
-			}
-		p {
-			font-size:12px;
-			font-weight:normal;
-			line-height:1.5;
-			}
-                 table {
-    font-size:12px;
-}
-		</style> <body>'''
-    html_suffix = r'''<p>Powered by <href='https://github.com/nealcaren/RefCliq' rarget="_blank">Refcliq<.</body></html>'''
-    table_header = [['<b>Name</b>','','<b>Centrality</b>','<b>Count</b>','<b>Keywords</b>']]
+def thous(x):
+    return '{0:n}'.format(Decimal(x))
 
 
-    reference_location = os.path.join(output_directory,'refs')
-    for dir_name in [output_directory,reference_location]:
-        try:
-            os.stat(dir_name)
-        except:
-            os.mkdir(dir_name)
-
-    years = sorted([article['year'] for article in articles])
-
-    outfile_name = os.path.join('%s' % output_directory,'index.html')
-    outfile = open(outfile_name,'w')
-    outfile.write (html_preface)
-    journals = journal_report(articles)
-    outfile.write('<h1>Cluster analysis of %s articles ' % thous(len(articles)) )
-    outfile.write('based on %s references cited at least %s times.' % (thous(len(G.nodes())) , node_min ) )
-    outfile.write('<h1>Major Journals: %s\n ' % journals)
-    outfile.write('<h1>Years: %s-%s\n ' % (years[0],years[-1]))
-    outfile.write('<h1>Clusters:' )
-    stopword_list = stopwords(articles)
-        
-    
-    clique_words = get_clique_words(articles,cliques ,stopword_list)
-
-
-    reverse_directory = make_reverse_directory(articles)
-
-    #Quick hack to figure out which are the biggest cliques and print(in reverse order)
-    clique_size = {}
-    for clique in clique_references:
-        for ref in clique_references[clique]:
-            clique_size[clique] = clique_size.get(clique,0) + clique_references[clique][ref]
-    
-    #Hack to put unsorted hack last:
-    clique_size['-1'] = 0
-    
-    clique_counter = 0
-    for clique in  sorted(clique_size, key=clique_size.get, reverse=True):
-        clique_members= [node for node in node_dict if node_dict[node]['clique']==clique]
-        c=G.subgraph(clique_members)
-        bc = nx.betweenness_centrality(c, normalized=True, weight='freq')
-        vocab = ', '.join(clique_words.get(clique,''))
-        table_text = []
-        try:
-            journals = ', '.join(clique_journals[clique])
-        except:
-            journals = 'None'
-
-        if int(clique) >= -2:
-            if int(clique) == -1:
-                vocab = "Cites that didn't cluster well."
-
-            clique_counter = clique_counter +1
-
-            outfile.write('<h2> %s   \n\n' % vocab)
-            outfile.write('<br><b>Journals:</b> %s \n </h2>' % journals.replace(r'\&','&') )
-
-            sorted_clique = sorted(clique_references[clique], key=clique_references[clique].get, reverse=True)
-            if int(clique)> - 1:
-                sorted_clique = sorted(bc, key=bc.get, reverse=True)
-
-            output_cites = [cite for cite in sorted_clique[:no_of_cites] if node_dict[cite]['freq'] > 4]
-            output_cites.sort()
-            
-            for cite in sorted(output_cites):
-                write_reverse_directory(cite,reverse_directory[cite],output_directory,stopword_list,articles)
-
-            table_text = table_header + [[str(cite_link(cite)+' '*40)[:130],'','%.2f' % bc[cite], node_dict[cite]['freq'],', '.join(cite_keywords(cite, stopword_list, articles, n = 5))] for cite in sorted_clique[:no_of_cites]]
-            table_text= html_table(table_text)
-            outfile.write(table_text)
-            outfile.write('<p>')
-    print('Report printed on %s nodes, %s edges and %s cliques to %s.' % (thous(len(G.nodes())), thous(len(G.edges())), clique_counter, output_directory))
-    outfile.write (html_suffix)
-    outfile.close()
-
-def cite_link(cite):
-    link_name = 'refs/%s' % make_filename(cite)
-    link = '''<a href='%s.html' target="_blank">%s</a>''' % (link_name,cite)
-    return link
 
 if __name__ == '__main__':
     parser = OptionParser()
@@ -628,7 +617,7 @@ if __name__ == '__main__':
     # Fabio: I have no reason to arbitrarily discard journals, yet
 
     cited_works = ref_cite_count(articles)
-    print('Seems like you have about '+format_string('%d',len(cited_works),grouping=True)+' different references.')
+    print('Seems like you have about '+thous(len(cited_works))+' different references.')
 
     if options.node_minimum == 0:
         node_minimum = int(2 + len(articles)/1000)
@@ -643,6 +632,18 @@ if __name__ == '__main__':
     G.add_edges_from(most_paired)
     for node in most_cited:
         G.add_node(node,freq= cited_works[node]['count'])
+
+    to_remove=[]
+    for n in G.nodes():
+        if len(list(G.neighbors(n)))==0:
+            to_remove.append(n)
+    G.remove_nodes_from(to_remove)
+
+
+    # import matplotlib.pylab as plt
+    # nx.draw(G)
+    # plt.show()
+    # exit()
 
     cliques = make_partition(G, min=10)
 
