@@ -18,213 +18,37 @@ http://perso.crans.org/aynaud/communities/
 """
 
 
-from pybtex.database.input import bibtex
 import itertools
 import glob
 import networkx as nx
 import community
 import re
-from nltk import stem
+
 from optparse import OptionParser
-import time
-
-now = time.time()
-
-    
-parser = OptionParser()
-parser.add_option("-n", "--node_minimum",
-                  action="store", type="int", dest="node_minimum", default=0)
-parser.add_option("-e", "--edge_minimum",
-                  action="store", type="int", dest="edge_minimum", default=2)
-parser.add_option("-d", "--directory_name",
-                  action="store", type="string", dest="directory_name",default='clusters')
-(options, args) = parser.parse_args()
-
-#Import files
-try:
-    flist= args
-except:
-    print 'No input file supplied.'
-    exit()
-
-#Stemmer for cleaning abstracts
-stemmer = stem.snowball.EnglishStemmer()
-def stem_word(word):
-    return stemmer.stem(word)
-
-def word_proper(word):
-    #Title case, using small word list from that Daring Fireball guy.
-    if word.lower() not in ['a','an','and','as','at','but','by','en','for','if','in','of','on','or','the','to']:
-        return word[0].upper()+word[1:].lower()
-    else:
-        return word.lower()
-
-def sentence_proper(text_string):
-    #title case a a whole sentence
-    proper_string = ' '.join([word_proper(word) for word in text_string.split()])
-    try:
-        return proper_string[0].upper()+proper_string[1:]
-    except:
-        return
-
-
-def r_author(reference):
-    #Extra author information from reference. Doesn't work when author isn't straighforward (like Census)
-    #Includes last name and  first initital of the author.
-    author = reference[0].strip('.')
-    author_split = author.split()
-    author_last_name = author_split[0]
-    author_last_name = word_proper(author_last_name)
-    try:
-        author_first_initial = author_split[1][0].upper()
-    except Exception, e:
-        author_first_initial = ''
-    if author_last_name == "Granovet.ms":
-        author_last_name = "Granovetter"
-        author_first_initial = "M"
-    return '%s %s' % (author_last_name, author_first_initial)
-
-def r_year(reference):
-    #Extra year from references. Returns nothing when year is not an interger, I think.
-    for item in reference:
-        try:
-            year = int(item)
-            return year
-        except Exception, e:
-            pass
-        if 'IN PRESS' in item:
-            return 'In Press'
-    return 'nd'
-    #print reference
-
-    return ''
-def r_cite(reference):
-    #Create a relatively unique name based on author, year and title.
-    try:
-        author = r_author(reference)
-        year = r_year(reference)
-        title = r_title(reference)
-        return '%s (%s) %s'.replace('.','') % (author,year,title)
-    except Exception, e:
-        return ''
-
-
-def r_doi(reference):
-    #extracts DOI from reference. I don't think I do anything with it though.
-    if 'DOI ' in reference[-1]:
-        return reference[-1].strip('DOI ')
-    else:
-        return ''
-
-def r_title(reference):
-    #cleans up title in reference
-    #reliex on the fact that the first year splits author from title
-    for order,item in enumerate(reference):
-        try:
-            year = int(item)
-            title = reference[order+1]
-            return sentence_proper(title)
-        except Exception, e:
-            pass
-    return sentence_proper(reference[1])
-    #return title
-
-def split_references(references):
-    #split references, correcting for the fact that '. ' is sometimes found within citations. Bastards.
-    references=references.replace('{','').replace('}','').split('. ')
-    split_references = [r.split(', ') for r in references]
-    cut = False
-    new_references = []
-    old_reference = []
-    for reference in split_references[:]:
-        original = reference
-        if cut == True:
-#            reference = [' '.join(old_reference) + '' + reference[0].replace('.','')] + reference[1:]
-            reference = [' '.join(old_reference)] + reference[1:]
-            #print reference
-
-        if len(reference)<2:
-            old_reference = old_reference + reference
-            cut = True
-        else:
-            new_references.append(reference)
-            old_reference = []
-            cut = False
-
-            if '()' in r_cite(reference):
-                print reference
-                print r_cite(reference)
-                print references
-                print '\n'*5
-
-
-    return new_references
-
-def extract_article_info(b,bp):
-        #grabs article info from a bibtex cite and returns some of the fields in a dictionary
-
-        article_title    = sentence_proper(b.get("title",'No title').replace('{','').replace('}',''))
-        article_journal  = b.get('series',b.get('journal','') )
-        article_journal  = sentence_proper(article_journal.replace('{','').replace('}',''))
-        article_year     = b.get('year','').replace('{','').replace('}','')
-        article_volume   = b.get('volume','').replace('{','').replace('}','')
-        article_number   = b.get('number','1').replace('{','').replace('}','')
-        article_pages    = b.get('pages','').replace('{','').replace('}','')
-        article_abstract = b.get('abstract','').replace('{','').replace('}','')
-        article_doi      = b.get('doi','').replace('{','').replace('}','')
-        if ' (C) ' in article_abstract:
-            article_abstract = article_abstract.split(' (C) ')[0]
-
-        try:
-            references = [r_cite(r) for r in split_references(b["cited-references"])]
-        except Exception, e:
-            references = []
-
-        try:
-            authors_raw = bp["author"]
-            article_author = '%s, %s' % ( authors_raw[0].last()[0], authors_raw[0].first()[0] )
-            if len(authors_raw)>2:
-                for a in authors_raw[1:-1]:
-                    article_author = '%s, %s %s' % (article_author,a.first()[0],a.last()[0])
-            if len(authors_raw)>1:
-                article_author = '%s & %s %s' % (article_author,authors_raw[-1].first()[0],authors_raw[-1].last()[0])
-        except Exception, e:
-            article_author = "None"
-
-        article_cite = '%s. %s. "%s." %s. %s:%s %s.' % (article_author,
-                                       article_year,
-                                       article_title,
-                                       article_journal,
-                                       article_volume,
-                                       article_number,
-                                       article_pages)
-        return {'cite' : article_cite,
-                'year': article_year,
-                'doi' : article_doi,
-                'title' : article_title,
-                'journal' : article_journal,
-                'volume' : article_volume,
-                'pages' : article_pages,
-                'references' : references,
-                'number' : article_number,
-                'abstract' : article_abstract }
-
-
+import json
+import os    
+from xml.etree import ElementTree as et
+from xml.etree.ElementTree import Element, SubElement, tostring
+from string import punctuation
+from collections import Counter
+from pybtex.database.input import bibtex
+from locale import format_string
+from preprocess import *
 
 
 
 def import_bibs(filelist):
-    #Takes a list of bibtex files and returns entries JSON style.
+    #Takes a list of bibtex files and returns entries as a list of dictionaries
     parser = bibtex.Parser()
     entered = {}
     #take a list of files in bibtex format and returns a list of articles
     articles = []
     for filename in filenames:
-        print 'Importing from %s' % filename
+        print('Importing from %s' % filename)
         try:
             bibdata = parser.parse_file(filename)
-        except Exception, e:
-            print 'Error with the file "%s"' % filename
+        except:
+            print('Error with the file "%s"' % filename)
         else:
             for bib_id in bibdata.entries:
                 b = bibdata.entries[bib_id].fields
@@ -234,7 +58,7 @@ def import_bibs(filelist):
                     articles.append(article)
                     entered[article['cite']]=True
 
-    print 'Imported %s articles.' % thous(len(articles))
+    print('Imported %s articles.' % thous(len(articles)))
     return articles
 
 def ref_cite_count(articles):
@@ -246,7 +70,7 @@ def ref_cite_count(articles):
         for reference in references:
             try:
                 cited_works[reference]['count'] = cited_works[reference]['count'] + 1
-            except Exception, e:
+            except:
                 cited_works[reference] = {'count':1 , 'abstract': article['abstract']}
     return cited_works
 
@@ -256,8 +80,8 @@ def top_cites(cited_works, threshold = 2):
     #threshold = cited_works[most_cited[-1]]['count']
     #if threshold < 2:
     most_cited = [r for r in cited_works if cited_works[r]['count'] >= threshold ]
-    print 'Minimum node weight: %s' % threshold
-    print 'Nodes: %s' % thous(len(most_cited))
+    print('Minimum node weight: %s' % threshold)
+    print('Nodes: %s' % thous(len(most_cited)))
     return most_cited
 
 
@@ -320,7 +144,7 @@ def make_reverse_directory(articles):
         for reference in article['references']:
             try:
                 reverse_directory[reference].append(article)
-            except Exception, e:
+            except:
                  reverse_directory[reference] = [article]
     return reverse_directory
 
@@ -359,21 +183,20 @@ def write_reverse_directory(cite,cited_bys,output_directory,stopword_list, artic
 		</style> <body>'''
     html_suffix = r'''<p>Powered by <href='https://github.com/nealcaren/RefCliq' rarget="_blank">Refcliq<.</body></html>'''
     filename = make_filename(cite)
-    output = open('%s/refs/%s.html' % (output_directory,filename), 'w')
-    output.write(html_preface)
-    output.write('<h1>Contemporary articles citing %s</h1>' % cite)
-    output.write('<h2>%s</h2>' % ', '.join(cite_keywords(cite, stopword_list, articles, n = 10)) )
-    output.write('<dl>')
-    for item in cited_bys:
-        output.write('<dt>%s \n' % item['cite'])
-        if len(item.get('doi','')) > 2:
-            link = 'http://dx.doi.org/%s' % item.get('doi','')
-            output.write('''<a href='%s' target="_blank">Link</a>''' % link)
-        #output.write('\n\n')
-        output.write('<dd>%s\n' % item.get('abstract',''))
-        output.write('<p>\t</p>\n')
-    output.write(html_suffix)
-    output.close()
+    with open('%s/refs/%s.html' % (output_directory,filename), 'w') as output:
+        output.write(html_preface)
+        output.write('<h1>Contemporary articles citing %s</h1>' % cite)
+        output.write('<h2>%s</h2>' % ', '.join(cite_keywords(cite, stopword_list, articles, n = 10)) )
+        output.write('<dl>')
+        for item in cited_bys:
+            output.write('<dt>%s \n' % item['cite'])
+            if len(item.get('doi','')) > 2:
+                link = 'http://dx.doi.org/%s' % item.get('doi','')
+                output.write('''<a href='%s' target="_blank">Link</a>''' % link)
+            #output.write('\n\n')
+            output.write('<dd>%s\n' % item.get('abstract',''))
+            output.write('<p>\t</p>\n')
+        output.write(html_suffix)
 
 
 def create_edge_list(articles, most_cited):
@@ -401,15 +224,13 @@ def top_edges(pairs, threshold = 2):
 
     most_paired = [p for p in pairs if pairs[p] >= threshold]
     most_paired = [ (p[0],p[1],{'weight':pairs[p]} ) for p in most_paired]
-    print 'Minimum edge weight: %s' % threshold
-    print 'Edges: %s' % thous(len(most_paired))
+    print('Minimum edge weight: %s' % threshold)
+    print('Edges: %s' % thous(len(most_paired)))
     return most_paired
 
-def d3_export(most_cited, most_paired, output_directory=options.directory_name):
+def d3_export(most_cited, most_paired, output_directory):
     #Exports network data in a JSON file format that d3js likes.
     #includes nodes with frequences and cliques; and edges with frequencies.
-    import json
-    import os    
     try:
         os.stat(output_directory)
     except:
@@ -426,16 +247,13 @@ def d3_export(most_cited, most_paired, output_directory=options.directory_name):
               'target' : node_key[p[1]],
               'value': int(p[2]['weight']) } for p in most_paired]
     d3_data = {'nodes': nodes, 'links' : links}
-    json.dump(d3_data,open(outfile_name,'wb'))
+    with open(outfile_name,'w') as jsonout:
+        json.dump(d3_data,jsonout)
 
-def gexf_export(most_cited, most_paired, output_directory=options.directory_name):
+def gexf_export(most_cited, most_paired, output_directory):
 	#Exports network data in .gexf format (readable by Gephi)
 	#John Mulligan -- not the prettiest, but it gets the job done and translates all the information exported in the d3_export module.
-    
-    from xml.etree import ElementTree as et
-    from xml.etree.ElementTree import Element, SubElement, tostring
-    import os    
-    
+        
     try:
         os.stat(output_directory)
     except:
@@ -524,7 +342,6 @@ def html_table(list_of_rows):
 def clean_abstract(abstract):
     #takes a string and returns a list of unique words minus punctation.
     #Stemming should probably be an option, not a requirement
-    from string import punctuation
     words = list(set([ stem_word(word.strip(punctuation)) for word in abstract.lower().split()]))
     words = [w for w in words if len(w)>0]
     return words
@@ -540,7 +357,7 @@ def article_clique(article, cliques, min=2):
     #Assign the clique to the most
     try:
         top_clique = sorted(clique_list, key=clique_list.get, reverse=True)[0]
-    except Exception, e:
+    except:
         top_clique = '-1'
 
     #Set minimum threshold for number of cites to define clique membership
@@ -555,7 +372,6 @@ def split_and_clean(sentence):
     return list(set(words))
 
 def make_word_freq(list_of_texts):
-    from collections import Counter
     #returns the % of documents containing each word
     document_count =float(len(list_of_texts))
     #Split and clean each of the texts.
@@ -586,7 +402,6 @@ def keywords(abstracts,stopword_list,n=10):
 
 def journal_cliques(articles, cliques):
     #finds the journals that commonly cite a reference clique.
-    from collections import Counter
     journals = [article['journal'] for article in articles]
     journal_counts = Counter(journals)
     clique_journals = {}
@@ -639,7 +454,6 @@ def get_clique_words(articles,cliques,stopword_list=[]):
 
 def journal_report(articles):
     #Could I have a string with all the journals and how many items from each?
-    from collections import Counter
     journals = Counter([article['journal'] for article in articles if article['journal'] is not None])
 
     try:
@@ -656,12 +470,11 @@ def thous(x, sep=',', dot='.'):
         num += dot + frac
     return num
 
-def clique_report(G, articles, cliques, no_of_cites=20, output_directory=options.directory_name):
-    import os
+def clique_report(G, articles, cliques, no_of_cites=20, output_directory='.'):
     #This functions does too much.
     node_count = len(G.nodes())
     #gather node, clique and edge information
-    nodes = list(G.nodes_iter(data=True))
+    nodes = list(G.nodes(data=True))
     node_dict = {node[0]:{'freq':node[1]['freq'], 'clique':node[1]['group'], 'abstract':node[1]['abstract']} for node in nodes}
     node_min = sorted([node_dict[node]['freq'] for node in node_dict])[0]
     #Build a dictionary of cliques listing articles with frequencies
@@ -671,7 +484,7 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory=options
         freq = node_dict[node]['freq']
         try:
             clique_references[clique][node] = freq
-        except Exception, e:
+        except:
             clique_references[clique] = {node : freq }
     clique_journals = journal_cliques(articles, cliques)
 
@@ -721,7 +534,7 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory=options
     years = sorted([article['year'] for article in articles])
 
     outfile_name = os.path.join('%s' % output_directory,'index.html')
-    outfile = open(outfile_name,'wb')
+    outfile = open(outfile_name,'w')
     outfile.write (html_preface)
     journals = journal_report(articles)
     outfile.write('<h1>Cluster analysis of %s articles ' % thous(len(articles)) )
@@ -737,7 +550,7 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory=options
 
     reverse_directory = make_reverse_directory(articles)
 
-    #Quick hack to figure out which are the biggest cliques and print in reverse order
+    #Quick hack to figure out which are the biggest cliques and print(in reverse order)
     clique_size = {}
     for clique in clique_references:
         for ref in clique_references[clique]:
@@ -755,7 +568,7 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory=options
         table_text = []
         try:
             journals = ', '.join(clique_journals[clique])
-        except Exception, e:
+        except:
             journals = 'None'
 
         if int(clique) >= -2:
@@ -781,24 +594,41 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory=options
             table_text= html_table(table_text)
             outfile.write(table_text)
             outfile.write('<p>')
-    print 'Report printed on %s nodes, %s edges and %s cliques to %s.' % (thous(len(G.nodes())), thous(len(G.edges())), clique_counter, output_directory)
+    print('Report printed on %s nodes, %s edges and %s cliques to %s.' % (thous(len(G.nodes())), thous(len(G.edges())), clique_counter, output_directory))
     outfile.write (html_suffix)
+    outfile.close()
 
 def cite_link(cite):
-    import os
     link_name = 'refs/%s' % make_filename(cite)
     link = '''<a href='%s.html' target="_blank">%s</a>''' % (link_name,cite)
     return link
 
 if __name__ == '__main__':
+    parser = OptionParser()
+    parser.add_option("-n", "--node_minimum",
+                    action="store", type="int", dest="node_minimum", default=0)
+    parser.add_option("-e", "--edge_minimum",
+                    action="store", type="int", dest="edge_minimum", default=2)
+    parser.add_option("-d", "--directory_name",
+                    action="store", type="string", dest="directory_name",default='clusters')
+    (options, args) = parser.parse_args()
+
+    #Import files
+    try:
+        flist= args
+    except:
+        print('No input file supplied.')
+        exit()
+
     filenames = flist
     articles = import_bibs(filenames)
 
-    #This journals seems to follow me whererver I go
-    articles = [a for a in articles if a['journal']!='Sociologicky Casopis-czech Sociological Review']
+    ## This journals seems to follow me whererver I go
+    # articles = [a for a in articles if a['journal']!='Sociologicky Casopis-czech Sociological Review']
+    # Fabio: I have no reason to arbitrarily discard journals, yet
 
     cited_works = ref_cite_count(articles)
-    print 'Seems like you have about %s different references.' % thous(str(len(cited_works)))
+    print('Seems like you have about '+format_string('%d',len(cited_works),grouping=True)+' different references.')
 
     if options.node_minimum == 0:
         node_minimum = int(2 + len(articles)/1000)
@@ -822,6 +652,3 @@ if __name__ == '__main__':
     d3_export(most_cited,most_paired, output_directory=options.directory_name)
     gexf_export(most_cited,most_paired, output_directory=options.directory_name)
     clique_report(G, articles, cliques, no_of_cites=25)
-
-
-#print time.time() - now
