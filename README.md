@@ -4,15 +4,13 @@ This is a Python program that uses a network clustering algorthym to anlayze
  Web of Knowledge records in BibTeX format. The results are helpful for constructing
  literature reviews.
  
-Requires Python 2.7 with the following dependencies:
+Requires Python 3 with the following dependencies:
 * [NLTK](http://nltk.org)
 * [Pybtex](http://pybtex.sourceforge.net)
 * [NetworkX](http://networkx.github.io)
-* [Community](http://perso.crans.org/aynaud/communities/)
+* [python-louvain](http://perso.crans.org/aynaud/communities/)
 
-You can install `NLTK`, `Pybtex` and `NetworkX` through `easy_install` or `pip`. To use `community`, download it and store it the same directory as `RefCliq` or somewhere else in your path.
-
-Note: This should work with Python 2.6 if you have [Counter class](http://code.activestate.com/recipes/576611-counter-class/). 
+You can install `NLTK`, `Pybtex` and `NetworkX` through `easy_install` or `pip`. To use `community`, `pip install python-louvain` (the 'community' package is something else).
 
 Sample Usage:
 --------
@@ -50,8 +48,3 @@ Using the same files and destination, but include all edges with at least two
 occurrences.
 
     $ python refcliq.py us_2012*.bib -d us_sociology -e 2
-    
-
-
-
-    
