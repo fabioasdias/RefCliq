@@ -1,4 +1,4 @@
-RefCliq
+RefCliq - Not working! do not use
 ====
 This is a Python program that uses a network clustering algorthym to anlayze
  Web of Knowledge records in BibTeX format. The results are helpful for constructing
