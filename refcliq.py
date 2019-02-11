@@ -21,7 +21,7 @@ http://perso.crans.org/aynaud/communities/
 import itertools
 import glob
 import networkx as nx
-import community
+from fuzzyClustering import fuzzyClustering
 from decimal import Decimal
 from optparse import OptionParser
 import json
@@ -173,7 +173,6 @@ def cite_link(cite):
     return link
 def clique_report(G, articles, cliques, no_of_cites=20, output_directory='./out/'):
     #This functions does too much.
-    node_count = len(G.nodes())
     #gather node, clique and edge information
     nodes = list(G.nodes(data=True))
     node_dict = {node[0]:{'freq':node[1]['freq'], 'clique':node[1]['group'], 'abstract':node[1]['abstract']} for node in nodes}
@@ -221,7 +220,7 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory='./out/
     font-size:12px;
 }
 		</style> <body>'''
-    html_suffix = r'''<p>Powered by <href='https://github.com/nealcaren/RefCliq' rarget="_blank">Refcliq<.</body></html>'''
+    html_suffix = r'''<p>Powered by <a href='https://github.com/nealcaren/RefCliq' target="_blank">Refcliq</a>.</body></html>'''
     table_header = [['<b>Name</b>','','<b>Centrality</b>','<b>Count</b>','<b>Keywords</b>']]
 
 
@@ -234,7 +233,7 @@ def clique_report(G, articles, cliques, no_of_cites=20, output_directory='./out/
 
     years = sorted([article['year'] for article in articles])
 
-    outfile_name = os.path.join('%s' % output_directory,'index.html')
+    outfile_name = os.path.join(output_directory,'index.html')
     outfile = open(outfile_name,'w')
     outfile.write (html_preface)
     journals = journal_report(articles)
@@ -472,7 +471,9 @@ def gexf_export(most_cited, most_paired, output_directory):
 	
 def make_partition(G,min=5):
     #clustering but removes small clusters.
-    partition = community.best_partition(G)
+    # partition = community.best_partition(G)
+    #dictionary n->clusterID (psi)
+    partition=fuzzyClustering(G,'freq')
     cliques = {}
     for node in partition:
         clique = partition[node]
@@ -499,7 +500,7 @@ def html_table(list_of_rows):
     return table_preface + table_body + table_suffix
 
 def clean_abstract(abstract):
-    #takes a string and returns a list of unique words minus punctation.
+    #takes a string and returns a list of unique words minus punctuation.
     #Stemming should probably be an option, not a requirement
     words = list(set([ stem_word(word.strip(punctuation)) for word in abstract.lower().split()]))
     words = [w for w in words if len(w)>0]
@@ -633,11 +634,6 @@ if __name__ == '__main__':
     for node in most_cited:
         G.add_node(node,freq= cited_works[node]['count'])
 
-    to_remove=[]
-    for n in G.nodes():
-        if len(list(G.neighbors(n)))==0:
-            to_remove.append(n)
-    G.remove_nodes_from(to_remove)
 
 
     # import matplotlib.pylab as plt
@@ -647,9 +643,10 @@ if __name__ == '__main__':
 
     cliques = make_partition(G, min=10)
 
+
     for node in most_cited:
         G.add_node(node,freq= cited_works[node]['count'], group = cliques[node], abstract = cited_works[node]['abstract'])
 
     d3_export(most_cited,most_paired, output_directory=options.directory_name)
     gexf_export(most_cited,most_paired, output_directory=options.directory_name)
-    clique_report(G, articles, cliques, no_of_cites=25)
+    clique_report(G, articles, cliques, no_of_cites=25, output_directory=options.directory_name)
