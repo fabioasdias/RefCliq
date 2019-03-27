@@ -10,8 +10,8 @@ import networkx as nx
 from string import punctuation
 
 
-def thous(x):
-    return '{0:n}'.format(Decimal(x))
+def thous(x:float)-> str:
+    return('{0:n}'.format(Decimal(x)))
 
 def make_filename(string):
     punctuation = '''!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~'''
@@ -24,8 +24,11 @@ def make_filename(string):
 
 
 def get_clique_words(articles,cliques,stopword_list=[]):
-    #This extracts the most common words in a clique based on articles that cite references in the clique.
-    #Note that this is the most frequent, not the distinquishing words (i.e. not uniquely occuring in the clique.)
+    """
+    This extracts the most common words in a clique based on articles that cite
+    references in the clique. Note that this is the most frequent, not the
+    distinquishing words (i.e. not uniquely occuring in the clique.)
+    """
     stopwords= get_stopwords()
     stopword_list = stopword_list + stopwords
     
