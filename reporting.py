@@ -4,14 +4,11 @@ import json
 from xml.etree import ElementTree as et
 from xml.etree.ElementTree import Element, SubElement, tostring
 from collections import Counter
-from decimal import Decimal
 from textprocessing import stopwords, get_stopwords, keywords, cite_keywords
 import networkx as nx
 from string import punctuation
+from util import thous
 
-
-def thous(x:float)-> str:
-    return('{0:n}'.format(Decimal(x)))
 
 def make_filename(string):
     punctuation = '''!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~'''

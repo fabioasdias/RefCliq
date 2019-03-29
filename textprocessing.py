@@ -1,5 +1,10 @@
 from collections import Counter
+from nltk import stem
 
+#Stemmer for cleaning abstracts
+stemmer = stem.snowball.EnglishStemmer()
+def stem_word(word):
+    return stemmer.stem(word)
 
 def split_and_clean(sentence):
     #turn string into a list of unique, lower-cased words

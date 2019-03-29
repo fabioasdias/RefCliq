@@ -23,54 +23,27 @@ import glob
 import networkx as nx
 import community
 from optparse import OptionParser
-from pybtex.database.input import bibtex
-from preprocess import extract_article_info
-from tqdm import tqdm
-from reporting import d3_export, gexf_export, clique_report, thous
+from preprocess import import_bibs
+from reporting import d3_export, gexf_export, clique_report
+from util import thous
 
-
-def import_bibs(filelist:list) -> list:
-    #Takes a list of bibtex files and returns entries as a list of dictionaries
-    parser = bibtex.Parser()
-    entered = {}
-    #take a list of files in bibtex format and returns a list of articles
-    articles = []
-    for filename in tqdm(filelist):
-        # print('Importing from ' + filename)
-        try:
-            bibdata = parser.parse_file(filename)
-        except:
-            print('Error with the file ' + filename)
-        else:
-            for bib_id in bibdata.entries:
-                b = bibdata.entries[bib_id].fields
-                bp= bibdata.entries[bib_id].persons
-                article=extract_article_info(b,bp)
-                if article['cite'] not in entered and len(article['references']) > 2:
-                    articles.append(article)
-                    entered[article['cite']]=True
-
-    print('Imported %s articles.' % thous(len(articles)))
-    return(articles)
 
 def ref_cite_count(articles):
-    #take a list of article and return a dictionary of works cited and their count
-    #Later add journal counts
+    """take a list of article and return a dictionary of 
+    works cited and their count Later add journal counts"""
     cited_works = {}
     for article in articles:
         references = set(article.get('references',[]) )
         for reference in references:
-            try:
-                cited_works[reference]['count'] = cited_works[reference]['count'] + 1
-            except:
+            if (reference in cited_works):
+                cited_works[reference]['count'] += 1
+            else:
                 cited_works[reference] = {'count':1 , 'abstract': article['abstract']}
-    return cited_works
+    return(cited_works)
 
 def top_cites(cited_works, threshold = 2):
-    #returns sorted list of the top cites. Would probably be better if handled ties in a more sophisticated way.
-    #most_cited = [r[0] for r in sorted(cited_works.items(), key=lambda (k,v): v['count'], reverse=True)[:n] ]
-    #threshold = cited_works[most_cited[-1]]['count']
-    #if threshold < 2:
+    """returns sorted list of the top cites. Would probably 
+    be better if handled ties in a more sophisticated way."""
     most_cited = [r for r in cited_works if cited_works[r]['count'] >= threshold ]
     print('Minimum node weight: %s' % threshold)
     print('Nodes: %s' % thous(len(most_cited)))
@@ -79,9 +52,10 @@ def top_cites(cited_works, threshold = 2):
 
     
 def make_journal_list(cited_works):
-    #Is it a journal or a book?
-    #A journal is somethign with more than three years of publication
-    #Returns a dictionary that just lists the journals
+    """    Is it a journal or a book?
+    A journal is somethign with more than three 
+    years of publication Returns a
+    dictionary that just lists the journals""" 
     cited_journals = {}
     for item in cited_works:
         title = item.split(') ')[-1]
@@ -111,9 +85,8 @@ def create_edge_list(articles, most_cited):
     return pairs
 
 def top_edges(pairs, threshold = 2):
-    # note that it doesn't just return n top edges, but actually returns all the edges that have
-    # an edge weight equal to or greater than the nth edge
-
+    """note that it doesn't just return n top edges, but actually returns all the edges that have
+    an edge weight equal to or greater than the nth edge"""
     #most_paired = sorted(pairs, key=pairs.get, reverse=True)[:n]
     #threshold =  pairs[most_paired[-1]]
     
@@ -163,6 +136,9 @@ if __name__ == '__main__':
         exit(-1)
 
     articles = import_bibs(args)
+
+    print(articles[0])
+    exit()
 
     ## This journals seems to follow me whererver I go
     # articles = [a for a in articles if a['journal']!='Sociologicky Casopis-czech Sociological Review']

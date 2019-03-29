@@ -1,18 +1,22 @@
-from nltk import stem
 
-#Stemmer for cleaning abstracts
-stemmer = stem.snowball.EnglishStemmer()
-def stem_word(word):
-    return stemmer.stem(word)
+from tqdm import tqdm
+from pybtex.database.input import bibtex
+from util import thous
+import re
 
-def word_proper(word):
+def _cleanCurly(s:str)->str:
+    """Removes curly braces """
+    return(s.replace('{',''). replace('}',''))
+
+
+def word_proper(word:str)->str:
     #Title case, using small word list from that Daring Fireball guy.
     if word.lower() not in ['a','an','and','as','at','but','by','en','for','if','in','of','on','or','the','to']:
         return word[0].upper()+word[1:].lower()
     else:
         return word.lower()
 
-def sentence_proper(text_string):
+def sentence_proper(text_string:str)->str:
     #title case a a whole sentence
     proper_string = ' '.join([word_proper(word) for word in text_string.split()])
     try:
@@ -30,13 +34,13 @@ def r_author(reference):
         author_first_initial = author_split[1][0].upper()
     except:
         author_first_initial = ''
-    if author_last_name == "Granovet.ms":
-        author_last_name = "Granovetter"
-        author_first_initial = "M"
+    # if author_last_name == "Granovet.ms":
+    #     author_last_name = "Granovetter"
+    #     author_first_initial = "M"
     return '%s %s' % (author_last_name, author_first_initial)
 
 def r_year(reference):
-    #Extra year from references. Returns nothing when year is not an interger, I think.
+    #Extra year from references. Returns nothing when year is not an integer, I think.
     for item in reference:
         try:
             year = int(item)
@@ -49,16 +53,6 @@ def r_year(reference):
     #print(reference)
 
     return ''
-def r_cite(reference):
-    #Create a relatively unique name based on author, year and title.
-    try:
-        author = r_author(reference)
-        year = r_year(reference)
-        title = r_title(reference)
-        return '%s (%s) %s'.replace('.','') % (author,year,title)
-    except:
-        return ''
-
 
 def r_doi(reference):
     #extracts DOI from reference. I don't think I do anything with it though.
@@ -69,7 +63,7 @@ def r_doi(reference):
 
 def r_title(reference):
     #cleans up title in reference
-    #reliex on the fact that the first year splits author from title
+    #relies on the fact that the first year splits author from title
     for order,item in enumerate(reference):
         try:
             year = int(item)
@@ -82,7 +76,30 @@ def r_title(reference):
 
 def split_references(references):
     #split references, correcting for the fact that '. ' is sometimes found within citations. Bastards.
-    references=references.replace('{','').replace('}','').split('. ')
+
+    #removes the \_ from DOIs
+    refs=references.replace(r"\_","_")
+    #removes inner lists {[} X, Y] with X
+    refs=re.sub('\{\[\}(.*?)(,.*?)+\]',r'\1',refs) 
+    
+    refs=refs.replace("{[}","[") #[Anonymous]
+    #[:, /\-\w]+  // [ \w\.]+
+    matches=re.finditer(r"{?(?P<author>.*?)]?, (?P<year>\d{4}), (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(,[DOI ]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", refs, flags=re.IGNORECASE)
+    for entry in matches:
+        print('----------')
+        print(entry.group('author'))
+        print(entry.group('year'))
+        print(entry.group('journal'))
+        print(entry.group('vol'))
+        print(entry.group('page'))
+        print(entry.group('doi'))
+
+        # input('.')
+    # exit()
+
+
+
+    references = references.split('. ')
     split_references = [r.split(', ') for r in references]
     cut = False
     new_references = []
@@ -111,51 +128,87 @@ def split_references(references):
 
     return new_references
 
-def extract_article_info(b,bp):
+
+def r_cite(reference):
+    #Create a relatively unique name based on author, year and title.
+    try:
+        author = r_author(reference)
+        year = r_year(reference)
+        title = r_title(reference)
+        return ('%{0} (%{1}) %{1}'.format(author,year,title)).replace('.','')
+    except:
+        return ''
+
+
+def extract_article_info(fields, people):
         #grabs article info from a bibtex cite and returns some of the fields in a dictionary
 
-        article_title    = sentence_proper(b.get("title",'No title').replace('{','').replace('}',''))
-        article_journal  = b.get('series',b.get('journal','') )
-        article_journal  = sentence_proper(article_journal.replace('{','').replace('}',''))
-        article_year     = b.get('year','').replace('{','').replace('}','')
-        article_volume   = b.get('volume','').replace('{','').replace('}','')
-        article_number   = b.get('number','1').replace('{','').replace('}','')
-        article_pages    = b.get('pages','').replace('{','').replace('}','')
-        article_abstract = b.get('abstract','').replace('{','').replace('}','')
-        article_doi      = b.get('doi','').replace('{','').replace('}','')
-        if ' (C) ' in article_abstract:
-            article_abstract = article_abstract.split(' (C) ')[0]
+        title    = sentence_proper(_cleanCurly(fields.get("title",'No title')))
+        journal  = sentence_proper(_cleanCurly(fields.get('series', fields.get('journal','') )))
+        year     = _cleanCurly(fields.get('year',''))
+        volume   = _cleanCurly(fields.get('volume',''))
+        number   = _cleanCurly(fields.get('number','1'))
+        pages    = _cleanCurly(fields.get('pages',''))
+        abstract = _cleanCurly(fields.get('abstract',''))
+        doi      = _cleanCurly(fields.get('doi',''))
+        if ' (C) ' in abstract:
+            abstract = abstract.split(' (C) ')[0]
+
+        # try:
+        references = [r_cite(r) for r in split_references(fields["cited-references"])]
+        # except:
+            # references = []
+        # exit()
 
         try:
-            references = [r_cite(r) for r in split_references(b["cited-references"])]
-        except:
-            references = []
-
-        try:
-            authors_raw = bp["author"]
-            article_author = '%s, %s' % ( authors_raw[0].last_names()[0], authors_raw[0].first_names()[0] )
+            authors_raw = people["author"]
+            author = '%s, %s' % ( authors_raw[0].last_names()[0], authors_raw[0].first_names()[0] )
             if len(authors_raw)>2:
                 for a in authors_raw[1:-1]:
-                    article_author = '%s, %s %s' % (article_author,a.first_names()[0],a.last_names()[0])
+                    author = '%s, %s %s' % (author,a.first_names()[0],a.last_names()[0])
             if len(authors_raw)>1:
-                article_author = '%s & %s %s' % (article_author,authors_raw[-1].first_names()[0],authors_raw[-1].last_names()[0])
+                author = '%s & %s %s' % (author,authors_raw[-1].first_names()[0],authors_raw[-1].last_names()[0])
         except:
-            article_author = "None"
+            author = "None"
 
-        article_cite = '%s. %s. "%s." %s. %s:%s %s.' % (article_author,
-                                       article_year,
-                                       article_title,
-                                       article_journal,
-                                       article_volume,
-                                       article_number,
-                                       article_pages)
-        return {'cite' : article_cite,
-                'year': article_year,
-                'doi' : article_doi,
-                'title' : article_title,
-                'journal' : article_journal,
-                'volume' : article_volume,
-                'pages' : article_pages,
+        cite = '%s. %s. "%s." %s. %s:%s %s.' % (author,
+                                       year,
+                                       title,
+                                       journal,
+                                       volume,
+                                       number,
+                                       pages)
+        return {'cite' : cite,
+                'Affiliation': fields.get('Affiliation',''),
+                'year': year,
+                'doi' : doi,
+                'title' : title,
+                'journal' : journal,
+                'volume' : volume,
+                'pages' : pages,
                 'references' : references,
-                'number' : article_number,
-                'abstract' : article_abstract }
+                'number' : number,
+                'abstract' : abstract }
+def import_bibs(filelist:list) -> list:
+    #Takes a list of bibtex files and returns entries as a list of dictionaries
+    parser = bibtex.Parser()
+    entered = {}
+    #take a list of files in bibtex format and returns a list of articles
+    articles = []
+    refs=[]
+    for filename in tqdm(filelist):
+        # print('Importing from ' + filename)
+        try:
+            bibdata = parser.parse_file(filename)
+        except:
+            print('Error with the file ' + filename)
+        else:
+            for bib_id in bibdata.entries:
+                article=extract_article_info(bibdata.entries[bib_id].fields,
+                                             bibdata.entries[bib_id].persons)
+                if article['cite'] not in entered and len(article['references']) > 2:
+                    articles.append(article)
+                    entered[article['cite']]=True
+
+    print('Imported %s articles.' % thous(len(articles)))
+    return(articles)
