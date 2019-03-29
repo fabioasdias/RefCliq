@@ -136,8 +136,6 @@ if __name__ == '__main__':
         exit(-1)
 
     articles = import_bibs(args)
-
-    print(articles[0])
     exit()
 
     ## This journals seems to follow me whererver I go
