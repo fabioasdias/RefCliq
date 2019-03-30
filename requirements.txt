@@ -4,3 +4,4 @@ pybtex
 nltk
 tqdm
 titlecase
+fuzzywuzzy[speedup]
