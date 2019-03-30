@@ -39,7 +39,7 @@ def same_article(a1:dict, a2:dict)->bool:
         if ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80:
             return(False)
 
-    if _compare_field(a1,a2,'doi')<=80:
+    if _compare_field(a1,a2,'doi')<=90:
         return(False)
     if _compare_field(a1,a2,'title')<=80:
         return(False)
@@ -59,11 +59,8 @@ def _find_article_no_doi(G:nx.DiGraph, a:dict):
     #we might change the graph!
     to_iterate=list(G.nodes())
     for n in to_iterate: 
-        if 'data' not in G.node[n]:
-            print(n, G.node[n])
-        else:
-            if same_article(G.node[n]['data'],a):
-                return(n)
+        if same_article(G.node[n]['data'],a):
+            return(n)
     return(None)
 
 
