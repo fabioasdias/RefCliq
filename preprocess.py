@@ -85,7 +85,7 @@ def extract_article_info(fields, people, references:list=None)->dict:
                 refs.append(split_references(r)[0])
 
     return {'Affiliation': fields.get('Affiliation',''),
-            'authors': people,
+            'authors': people.get("author",[]),
             'year': _cleanCurly(fields.get('year','')),
             'doi' : _cleanCurly(fields.get('doi','')).lower(),
             'title' : _cleanCurly(fields.get("title",'No title')),

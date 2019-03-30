@@ -28,16 +28,6 @@ def same_article(a1:dict, a2:dict)->bool:
     """
     if _compare_field(a1,a2,'year')<100:
         return(False)
-    if _compare_field(a1,a2,'doi')<=80:
-        return(False)
-    if _compare_field(a1,a2,'title')<=80:
-        return(False)
-    if _compare_field(a1,a2,'journal')<=80:
-        return(False)
-    if _compare_field(a1,a2,'vol')<=80:
-        return(False)
-    if _compare_field(a1,a2,'page')<=80:
-        return(False)    
 
     #article from references only have one author
     L1=len(a1['authors'])
@@ -48,6 +38,17 @@ def same_article(a1:dict, a2:dict)->bool:
     for i in range(min([L1,L2])):
         if ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80:
             return(False)
+
+    if _compare_field(a1,a2,'doi')<=80:
+        return(False)
+    if _compare_field(a1,a2,'title')<=80:
+        return(False)
+    if _compare_field(a1,a2,'journal')<=80:
+        return(False)
+    if _compare_field(a1,a2,'vol')<=80:
+        return(False)
+    if _compare_field(a1,a2,'page')<=80:
+        return(False)    
 
     return(True)
 
