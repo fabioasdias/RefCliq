@@ -22,6 +22,7 @@ import itertools
 import glob
 import networkx as nx
 import community
+from citations import build_citation_network
 from optparse import OptionParser
 from preprocess import import_bibs
 from reporting import d3_export, gexf_export, clique_report
@@ -135,12 +136,11 @@ if __name__ == '__main__':
         print('No input file supplied.')
         exit(-1)
 
-    articles = import_bibs(args)
+    citation_network=build_citation_network(import_bibs(args))
+
     exit()
 
-    ## This journals seems to follow me whererver I go
-    # articles = [a for a in articles if a['journal']!='Sociologicky Casopis-czech Sociological Review']
-    # Fabio: I have no reason to arbitrarily discard journals, yet
+
 
     cited_works = ref_cite_count(articles)
     print('Seems like you have about '+thous(len(cited_works))+' different references.')

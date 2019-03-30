@@ -5,9 +5,9 @@ from pybtex.database import Person
 from util import thous
 import re
 from titlecase import titlecase
+from bibtex import parse
 
-
-_citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?, (?P<year>\d{4}), (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
+_citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')
 def _cleanCurly(s:str)->str:
     """Removes curly braces"""
@@ -52,26 +52,38 @@ def split_references(references:str)->list:
     matches=_citePattern.finditer(refs)
     ret=[]
     for entry in matches:
-        article={'authors':Person(string=_properName(entry.group('author'))),
-        'year':entry.group('year'), 
-        'journal':titlecase(entry.group('journal')),
-        'vol':entry.group('vol'), 
-        'page':entry.group('page'), 
-        'doi':entry.group('doi')}
-        ret.append()
+        article={'authors' : [Person(string=_properName(entry.group('author'))),],
+            'year' : entry.group('year'), 
+            'journal' : titlecase(entry.group('journal')),
+            'vol' : entry.group('vol'), 
+            'inPress' : False,
+            'page' : entry.group('page'), 
+            'doi' : entry.group('doi')}
+        ret.append(article)
     return(ret)
 
-def extract_article_info(fields, people)->dict:
+def extract_article_info(fields, people, references:list=None)->dict:
     """
-    Creates a dict with the information from the bibtex fields
+    Creates a dict with the information from the bibtex fields.
+    If "references" is passed, uses that to compute the references
     """
 
     abstract = _cleanCurly(fields.get('abstract',''))
     if ' (C) ' in abstract:
         abstract = abstract.split(' (C) ')[0]
 
-    refs=split_references(fields.get("cited-references",[]))
-    print(refs)
+    if (references is None):
+        refs=split_references(fields.get("cited-references",[]))
+    else:
+        refs=[]
+        for r in references:
+            if ('in press' in r.lower()):
+                better_ref=re.sub('in press','',r,flags=re.IGNORECASE)
+                refs.append(split_references(better_ref)[0])
+                refs[-1]['inPress']=True
+            else:
+                refs.append(split_references(r)[0])
+
     return {'Affiliation': fields.get('Affiliation',''),
             'authors': people,
             'year': _cleanCurly(fields.get('year','')),
@@ -91,8 +103,13 @@ def import_bibs(filelist:list) -> list:
     """
     parser = bibtex.Parser()
     articles = []
+    refName="Cited-References"
     for filename in tqdm(filelist):
         try:
+            #since pybtex removes the \n from this field, we do it ourselves
+            references=parse(filename,keepOnly=[refName,])
+            for k in references:
+                references[k][refName]=[x.strip() for x in references[k][refName].split('\n')]
             bibdata = parser.parse_file(filename)
         except:
             print('Error with the file ' + filename)
@@ -100,7 +117,8 @@ def import_bibs(filelist:list) -> list:
         else:
             for bib_id in bibdata.entries:
                 articles.append(extract_article_info(bibdata.entries[bib_id].fields,
-                                             bibdata.entries[bib_id].persons))
+                                                bibdata.entries[bib_id].persons,
+                                                references[bib_id][refName]))
 
     print('Imported %s articles.' % thous(len(articles)))
     return(articles)
