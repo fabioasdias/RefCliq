@@ -1,14 +1,35 @@
 from collections import Counter
 from nltk import stem
+from string import punctuation
+from nltk.tokenize import word_tokenize
+
+# Load library
+from nltk.corpus import stopwords as nltk_stopwords
+
+# You will have to download the set of stop words the first time
+import nltk
+
+nltk.download('stopwords')
+nltk.download('punkt')
+stemmer = stem.snowball.EnglishStemmer()
+
+def tokens_from_sentence(sentence:str)->list:
+    """
+      Returns a list of "important" words in a sentence.
+      Only works in english.
+    """
+    stop_words = nltk_stopwords.words('english')
+    return([stemmer.stem(word).lower() for word in word_tokenize(sentence) if word not in stop_words])
+
 
 #Stemmer for cleaning abstracts
-stemmer = stem.snowball.EnglishStemmer()
+
 def stem_word(word):
     return stemmer.stem(word)
 
 def split_and_clean(sentence):
     #turn string into a list of unique, lower-cased words
-    punctuation = '''!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~'''
+    # punctuation = '''!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~'''
     words = [str(w.strip(punctuation).lower()) for w in sentence.split()]
     return list(set(words))
 
@@ -25,7 +46,6 @@ def make_word_freq(list_of_texts):
     word_counts = Counter(words)
     word_freq = {word : (word_counts[word]/document_count) for word in word_counts}
     return word_freq
-    #for text in list_of texts:
 
 def clean_abstract(abstract):
     #takes a string and returns a list of unique words minus punctation.

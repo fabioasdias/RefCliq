@@ -11,6 +11,8 @@ _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')
 def _cleanCurly(s:str)->str:
     """Removes curly braces"""
+    if not s:
+        return(s)
     return(s.replace('{',''). replace('}',''))
 
 def _properName(name:str)->str:
@@ -88,22 +90,22 @@ def extract_article_info(fields, people, references:list)->dict:
             refs.append(split_reference(better_ref))
             refs[-1]['inPress']=True
         else:
-            try:
-                refs.append(split_reference(r))
-            except:
-                print(r)
-                raise
+            refs.append(split_reference(r))
+
+    doi=fields.get('doi',None)
+    if doi:
+        doi=_cleanCurly(doi.lower())
 
     return {'Affiliation': fields.get('Affiliation',''),
             'authors': people.get("author",[]),
-            'year': _cleanCurly(fields.get('year','')),
-            'doi' : _cleanCurly(fields.get('doi','')).lower(),
-            'title' : _cleanCurly(fields.get("title",'No title')),
-            'journal' : _cleanCurly(fields.get('series', fields.get('journal','') )),
-            'volume' : _cleanCurly(fields.get('volume','')),
-            'pages' : _cleanCurly(fields.get('pages','')),
+            'year': _cleanCurly(fields.get('year',None)),
+            'doi' : doi,
+            'title' : _cleanCurly(fields.get("title",None)),
+            'journal' : _cleanCurly(fields.get('series', fields.get('journal',None) )),
+            'volume' : _cleanCurly(fields.get('volume',None)),
+            'pages' : _cleanCurly(fields.get('pages',None)),
             'references' : refs,
-            'number' : _cleanCurly(fields.get('number','1')),
+            'number' : _cleanCurly(fields.get('number',None)),
             'abstract' : abstract }
 
 def import_bibs(filelist:list) -> list:

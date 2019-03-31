@@ -22,7 +22,7 @@ import itertools
 import glob
 import networkx as nx
 import community
-from citations import build_citation_network, citation2cocitation
+from citations import CitationNetwork
 from optparse import OptionParser
 from preprocess import import_bibs
 from reporting import d3_export, gexf_export, clique_report
@@ -145,18 +145,19 @@ if __name__ == '__main__':
         exit(-1)
 
     # cn_cache='gn_cache.gp'
-    cn_cache='urban1.gp'
+    # cn_cache='urban1.gp'
 
-    if exists(cn_cache):
-        citation_network=nx.read_gpickle(cn_cache)
-    else:
-        citation_network=build_citation_network(import_bibs(args))
-        nx.write_gpickle(citation_network,cn_cache)
+    # if exists(cn_cache):
+    #     citation_network=nx.read_gpickle(cn_cache)
+    # else:
+    citation_network=CitationNetwork()
+    citation_network.build(import_bibs(args))
+    # nx.write_gpickle(citation_network,cn_cache)
     
-    print(thous(len(citation_network))+' different references.')
+    print(thous(len(citation_network._G))+' different references.')
 
-    co_citation_network=citation2cocitation(citation_network, threshold=options.edge_minimum)
-    print(len(co_citation_network))
+    # co_citation_network=citation2cocitation(citation_network, threshold=options.edge_minimum)
+    # print(len(co_citation_network))
 
     exit()
 

@@ -2,26 +2,177 @@ import networkx as nx
 from fuzzywuzzy.fuzz import ratio
 from tqdm import tqdm
 from itertools import combinations
+from collections import Counter
+from textprocessing import tokens_from_sentence
+from math import floor
+class CitationNetwork:
+    def __init__(self):
+        self._G=nx.DiGraph() #the network
+        self._year={'None':[]}        #indexes
+        self._authors={1:[]}
+        self._journal={0:[]}
+        self._noDOI=[]
 
-# import matplotlib.pylab as plt
-
-def _compare_field(a1:dict, a2:dict, field:str,field2:str=None)->int:
-    """
-    Returns fuzzywuzzy's ratio for the same field in two dicts (or different
-    fields optionally)
-    """
-    if (field2 is None):
-        if (field in a1) and (field in a2) and (a1[field] is not None) and (a2[field] is not None):
-            return(ratio(a1[field],a2[field]))
-    else:
-        if (field in a1) and (field2 in a2) and (a1[field] is not None) and (a2[field2] is not None):
-            return(ratio(a1[field],a2[field2]))
     
-    #if either of the fields is none or doesn't exist, 
-    #try the optimistic way
-    return(100)
 
+    def build(self,articles:list):
+        """
+        Builds a directed graph to represent the citation network in the list of
+        articles.
+        """
+        G=self._G
+        print('citation network - Full citation in the .bibs')
+        for article in tqdm(articles):
+            citing=self.find(article)
+        print('citation network - Cited-References')            
+        for article in tqdm(articles):
+            citing=self.find(article)
+            for cited_article in article['references']:
+                cited=self.find(cited_article)
+                G.add_edge(citing,cited)
+
+    def add(self,article:dict,replaceNode:any=None)->any:
+        """
+        Adds a new citation to the network.
+        if replaceNode is given, replaces that node in the network
+        (this is used to update the name to use a previously unknown DOI)
+
+        Returns the node.
+        """
+        G=self._G
+
+        if ('doi' in article) and (article['doi'] is not None):
+            ID=article['doi']
+            if replaceNode:
+                # print('Replacing {0} with {1}'.format(replaceNode,ID))
+                n=replaceNode
+                for nn in G.predecessors(n):
+                    G.add_edge(nn,ID)
+                for nn in G.successors(n):
+                    G.add_edge(ID,nn)
+                #removes from the indexes
+                self._year[G.node[n]['index']['year']].remove(n)
+                self._authors[G.node[n]['index']['authors']].remove(n)
+                self._noDOI.remove(n)
+                for index in G.node[n]['index']['journal']:
+                    self._journal[index].remove(n)
+                G.remove_node(n)
+                
+        else:
+            ID=len(self._G)
+
+        G.add_node(ID)
+        G.node[ID]['data']=article
+
+        #store which index in the node to make update easier
+        G.node[ID]['index']={}
+
+        if ('doi' not in article) or (article['doi'] is None):
+            self._noDOI.append(ID)
+
+        yearIndex=str(article['year'])
+        G.node[ID]['index']['year']=yearIndex
+        if yearIndex not in self._year:
+            self._year[yearIndex]=[]
+        self._year[yearIndex].append(ID)
+
+        authorIndex=len(article['authors'])
+        G.node[ID]['index']['authors']=authorIndex
+        if authorIndex not in self._authors:
+            self._authors[authorIndex]=[]
+        self._authors[authorIndex].append(ID)
+
+        
+        if ('journal' in article) and (article['journal'] is not None):
+            tokens=tokens_from_sentence(article['journal'])
+            G.node[ID]['index']['journal']=tokens
+            for token in tokens:
+                if token not in self._journal:
+                    self._journal[token]=[]
+                self._journal[token].append(ID)
+        else:
+            self._journal[0].append(ID)
+            G.node[ID]['index']['journal']=[0,]
+
+        return(ID)
+
+    def _find_article_no_doi(self, article:dict):
+        """
+        Finds the article without using the DOI
+        """
+        G=self._G
+        fields=[k for k in article if (article[k])]        
+
+
+        possibles_year=self._year['None'][:]
+        
+        if ('year' in fields) and (article['year'] in self._year):
+            possibles_year.extend(self._year[article['year']][:])
+        if not possibles_year:
+            return(None)
+
+        possibles_authors=self._authors[1][:]
+        nAuthors=len(article['authors'])
+        if (nAuthors!=1) and (nAuthors in self._authors):
+            possibles_authors.extend(self._authors[nAuthors][:])
+        if not possibles_authors:
+            return(None)
             
+        if ('journal' in fields):
+            possibles_journal=self._journal[0][:]
+            tokens=tokens_from_sentence(article['journal'])
+            for token in tokens:
+                if token in self._journal:
+                    possibles_journal.extend(self._journal[token])
+
+
+        possibles=set(possibles_year).intersection(set(possibles_authors)).intersection(set(possibles_journal))
+        if not possibles:
+            return(None)
+
+        if ('doi' in article) and (article['doi'] is not None):
+            #if we are looking for something that has a DOI at this point, it
+            #will only be in the graph if we have it without DOI
+            possibles=possibles.intersection(set(self._noDOI))
+        if not possibles:
+            return(None)
+
+        # newPossibles=possibles.intersection(set(possibles_journal))
+        # difference=possibles-newPossibles
+        # for n in difference:
+        #     if (same_article(G.node[n]['data'],article)):
+        #         print('here lies the problem!')
+
+
+
+        for n in possibles: 
+            if same_article(G.node[n]['data'],article):
+                return(n)
+
+        return(None)
+
+
+    def find(self, article: dict):
+        """
+        Finds the node corresponding to article a.
+        Adds, in place, if it isn't in the graph.
+        Replaces the node if the new article has a DOI.
+        """
+        G=self._G
+        #find by DOI
+        if ('doi' in article) and (article['doi'] is not None):
+            if (article['doi'] in G):
+                return(article['doi'])
+            #article might be there, just not with a DOI yet                
+            else:    
+                return(self.add(article,self._find_article_no_doi(article)))
+
+        #article doesnt have a DOI
+        n=self._find_article_no_doi(article)
+        if (n is not None):
+            return(n)
+        else:
+            return(self.add(article))
 
 def same_article(a1:dict, a2:dict)->bool:
     """
@@ -29,97 +180,36 @@ def same_article(a1:dict, a2:dict)->bool:
 
     Uses fuzzy string matching and the Person structure from pybtex.
     """
-    if ('year' in a1) and ('year' in a2) and (a1['year'] is not None) and (a2['year'] is not None):
+
+    usefulFields=list(set([k for k in a1 if a1[k]]).intersection(set([k for k in a2 if a2[k]])))
+
+    if 'year' in usefulFields:
         if (a1['year']!=a2['year']):
             return(False)
+
+    if 'doi' in usefulFields:
+        if (a1['doi']!=a2['doi']):
+            return(False)
+
 
     #article from references only have one author
     L1=len(a1['authors'])
     L2=len(a2['authors'])
-    if (L1>1) and (L2>1) and (L1!=L2):
+    if (L1!=1) and (L2!=1) and (L1!=L2):
         return(False)
     #We have same year, same title / journal
     for i in range(min([L1,L2])):
         if ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80:
             return(False)
 
-    if _compare_field(a1,a2,'doi')<=90:
-        return(False)
-    if _compare_field(a1,a2,'title')<=80:
-        return(False)
-    if _compare_field(a1,a2,'journal')<=80:
-        return(False)
-    if _compare_field(a1,a2,'vol')<=80:
-        return(False)
-    if _compare_field(a1,a2,'page')<=80:
-        return(False)    
+    for field in ['title','journal','page','vol']:
+        if (field in usefulFields) and (ratio(a1[field],a2[field])<=80):
+            return(False)
 
     return(True)
 
-def _find_article_no_doi(G:nx.DiGraph, a:dict):
-    """
-    Finds the article without using the DOI information 
-    """
-    for n in G: 
-        if same_article(G.node[n]['data'],a):
-            return(n)
-    return(None)
 
 
-def _findArticle(G:nx.DiGraph, a: dict):
-    """
-    finds the node corresponding to article a.
-    Adds it to the graph if it doesn't exist (in place)
-    """
-    #find by DOI
-    if ('doi' in a) and (a['doi'] is not None):
-        doi=a['doi']
-        if (doi not in G):
-            #article might be there, just not with a DOI
-            n=_find_article_no_doi(G,a)
-            
-            G.add_node(doi)
-            G.node[doi]['data']=a
-
-            #the work is there, but it was not represented by its doi.
-            #  We know the doi now, so let's replace it
-            if (n is not None):
-                #new data might be a citation only
-                if (len(G.node[doi]['data']['authors'])==1) and (len(G.node[n]['data']['authors'])>1):
-                    print('happened')
-                    G.node[doi]['data']['authors']=G.node[n]['data']['authors']
-                for nn in G.predecessors(n):
-                    G.add_edge(nn,doi)
-                for nn in G.successors(n):
-                    G.add_edge(doi,nn)
-                G.remove_node(n)
-
-        return(doi)
-    #if we don't have the doi, the work might be there or not, gotta find it.
-    #The hard way.
-    else:
-        n=_find_article_no_doi(G,a)
-        if (n is not None):
-            return(n)
-        n=len(G)
-        G.add_node(n)
-        G.node[n]['data']=a
-        return(n)
-
-
-def build_citation_network(articles:list)->nx.DiGraph:
-    """
-    Builds a directed graph to represent the citation network in the list of
-    articles.
-    """
-    G=nx.DiGraph()
-    print('citation network')
-    for article in tqdm(articles):
-        citing=_findArticle(G,article)
-        for cited_article in article['references']:
-            cited=_findArticle(G,cited_article)
-            G.add_edge(citing,cited)
-    return(G)
 
 def citation2cocitation(C:nx.DiGraph, threshold:int)->nx.Graph:
     """
