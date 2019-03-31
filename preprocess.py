@@ -35,54 +35,64 @@ def _properName(name:str)->str:
     return(last+", "+' '.join(rest).replace(".",""))
 
 
-def split_references(references:str)->list:
+def split_reference(reference:str)->dict:
     """
-    Generates a list of dictionaries with the info on the cited references.
+    Generates a dictionary with the info present on the _single_ reference line.
 
-    references: raw text from "cited-references" WoS's .bib
-    return: [{author, year ,journal, vol, page, doi},]. None for missing values.
+    references: raw text from "cited-references" WoS's .bib (with \n!)
+    return: {author, year ,journal, vol, page, doi}. None for missing values.
     """
     #removes the \_ from DOIs
-    refs=references.replace(r"\_","_")
+    ref=reference.replace(r"\_","_")
     #removes the non-list {[} ]
-    refs=re.sub(r"\{\[\}([^,\]]*?)\]",r"\1",refs)
+    ref=re.sub(r"\{\[\}([^,\]]*?)\]",r"\1",ref)
     #replaces inner lists {[} X, Y] with X
-    refs=_listPattern.sub(r'\1',refs) 
+    ref=_listPattern.sub(r'\1',ref) 
     
-    matches=_citePattern.finditer(refs)
-    ret=[]
-    for entry in matches:
-        article={'authors' : [Person(string=_properName(entry.group('author'))),],
-            'year' : entry.group('year'), 
-            'journal' : titlecase(entry.group('journal')),
-            'vol' : entry.group('vol'), 
+    match=_citePattern.search(ref)
+    
+    if match:
+        article={'authors' : [Person(string=_properName(match.group('author'))),],
+            'year' : match.group('year'), 
+            'journal' : titlecase(match.group('journal')),
+            'vol' : match.group('vol'), 
             'inPress' : False,
-            'page' : entry.group('page'), 
-            'doi' : entry.group('doi')}
-        ret.append(article)
-    return(ret)
+            'page' : match.group('page'), 
+            'doi' : match.group('doi')}
+    # we know this is a reference. It might be only the name of the publication
+    else:
+        article={'authors':[],
+                 'journal': titlecase(reference),
+                 'year':None,
+                 'vol': None,
+                 'inPress': False,
+                 'page':None,
+                 'doi':None
+                 }
+    return(article)
 
-def extract_article_info(fields, people, references:list=None)->dict:
+def extract_article_info(fields, people, references:list)->dict:
     """
     Creates a dict with the information from the bibtex fields.
-    If "references" is passed, uses that to compute the references
+    "references" is the raw Cited-References field from WoS' with \n s
     """
 
     abstract = _cleanCurly(fields.get('abstract',''))
     if ' (C) ' in abstract:
         abstract = abstract.split(' (C) ')[0]
 
-    if (references is None):
-        refs=split_references(fields.get("cited-references",[]))
-    else:
-        refs=[]
-        for r in references:
-            if ('in press' in r.lower()):
-                better_ref=re.sub('in press','',r,flags=re.IGNORECASE)
-                refs.append(split_references(better_ref)[0])
-                refs[-1]['inPress']=True
-            else:
-                refs.append(split_references(r)[0])
+    refs=[]
+    for r in references:
+        if ('in press' in r.lower()):
+            better_ref=re.sub('in press','',r,flags=re.IGNORECASE)
+            refs.append(split_reference(better_ref))
+            refs[-1]['inPress']=True
+        else:
+            try:
+                refs.append(split_reference(r))
+            except:
+                print(r)
+                raise
 
     return {'Affiliation': fields.get('Affiliation',''),
             'authors': people.get("author",[]),
@@ -101,24 +111,32 @@ def import_bibs(filelist:list) -> list:
     Takes a list of bibtex files and returns entries as a list of dictionaries
     representing the info on each work
     """
-    parser = bibtex.Parser()
     articles = []
-    refName="Cited-References"
+    references_field="Cited-References"
     for filename in tqdm(filelist):
         try:
             #since pybtex removes the \n from this field, we do it ourselves
-            references=parse(filename,keepOnly=[refName,])
+            references=parse(filename,keepOnly=[references_field,])
             for k in references:
-                references[k][refName]=[x.strip() for x in references[k][refName].split('\n')]
+                if (references_field not in references[k]):
+                    references[k][references_field]=[]
+                else:
+                    references[k][references_field]=[x.strip() for x in references[k][references_field].split('\n')]
+
+            bibdata = {}
+            parser = bibtex.Parser()
             bibdata = parser.parse_file(filename)
-        except:
-            print('Error with the file ' + filename)
-            raise
-        else:
+
             for bib_id in bibdata.entries:
+                # print(filename,bib_id)
                 articles.append(extract_article_info(bibdata.entries[bib_id].fields,
                                                 bibdata.entries[bib_id].persons,
-                                                references[bib_id][refName]))
+                                                references[bib_id][references_field]))
+
+        except:
+            print('Error with the file ' + filename)
+            print(bib_id,filename)
+            raise
 
     print('Imported %s articles.' % thous(len(articles)))
     return(articles)

@@ -22,12 +22,13 @@ import itertools
 import glob
 import networkx as nx
 import community
-from citations import build_citation_network
+from citations import build_citation_network, citation2cocitation
 from optparse import OptionParser
 from preprocess import import_bibs
 from reporting import d3_export, gexf_export, clique_report
 from util import thous
 
+from os.path import exists
 
 def ref_cite_count(articles):
     """take a list of article and return a dictionary of 
@@ -123,28 +124,43 @@ def make_partition(G,min=5):
 if __name__ == '__main__':
 
     parser = OptionParser()
-    parser.add_option("-n", "--node_minimum",
-                    action="store", type="int", dest="node_minimum", default=0)
+    # parser.add_option("-n", "--node_minimum",
+    #                 action="store", type="int", 
+    #                 help="Minimum number times a work needs to be cited to be used",
+    #                 dest="node_minimum", default=0)
     parser.add_option("-e", "--edge_minimum",
-                    action="store", type="int", dest="edge_minimum", default=2)
+                    action="store", type="int", 
+                    help="Minimum number of co-citations to consider the pair of works",
+                    dest="edge_minimum", default=2)
     parser.add_option("-d", "--directory_name",
-                    action="store", type="string", dest="directory_name",default='clusters')
+                    action="store", type="string", 
+                    help="Output directory, defaults to 'clusters'",
+                    dest="directory_name",default='clusters')
     (options, args) = parser.parse_args()
 
     #Import files
     if len(args)==0:
-        print('No input file supplied.')
+        print('\nNo input files!\n')
+        parser.print_help()
         exit(-1)
 
-    citation_network=build_citation_network(import_bibs(args))
+    # cn_cache='gn_cache.gp'
+    cn_cache='urban1.gp'
+
+    if exists(cn_cache):
+        citation_network=nx.read_gpickle(cn_cache)
+    else:
+        citation_network=build_citation_network(import_bibs(args))
+        nx.write_gpickle(citation_network,cn_cache)
+    
+    print(thous(len(citation_network))+' different references.')
+
+    co_citation_network=citation2cocitation(citation_network, threshold=options.edge_minimum)
+    print(len(co_citation_network))
 
     exit()
 
-
-
     cited_works = ref_cite_count(articles)
-    print('Seems like you have about '+thous(len(cited_works))+' different references.')
-
     if options.node_minimum == 0:
         node_minimum = int(2 + len(articles)/1000)
     else:

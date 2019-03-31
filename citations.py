@@ -1,6 +1,9 @@
 import networkx as nx
 from fuzzywuzzy.fuzz import ratio
 from tqdm import tqdm
+from itertools import combinations
+
+# import matplotlib.pylab as plt
 
 def _compare_field(a1:dict, a2:dict, field:str,field2:str=None)->int:
     """
@@ -26,8 +29,9 @@ def same_article(a1:dict, a2:dict)->bool:
 
     Uses fuzzy string matching and the Person structure from pybtex.
     """
-    if _compare_field(a1,a2,'year')<100:
-        return(False)
+    if ('year' in a1) and ('year' in a2) and (a1['year'] is not None) and (a2['year'] is not None):
+        if (a1['year']!=a2['year']):
+            return(False)
 
     #article from references only have one author
     L1=len(a1['authors'])
@@ -56,9 +60,7 @@ def _find_article_no_doi(G:nx.DiGraph, a:dict):
     """
     Finds the article without using the DOI information 
     """
-    #we might change the graph!
-    to_iterate=list(G.nodes())
-    for n in to_iterate: 
+    for n in G: 
         if same_article(G.node[n]['data'],a):
             return(n)
     return(None)
@@ -79,9 +81,13 @@ def _findArticle(G:nx.DiGraph, a: dict):
             G.add_node(doi)
             G.node[doi]['data']=a
 
-            #the work is there, but not represented by its doi
-            #We know the doi now, so let's replace it
+            #the work is there, but it was not represented by its doi.
+            #  We know the doi now, so let's replace it
             if (n is not None):
+                #new data might be a citation only
+                if (len(G.node[doi]['data']['authors'])==1) and (len(G.node[n]['data']['authors'])>1):
+                    print('happened')
+                    G.node[doi]['data']['authors']=G.node[n]['data']['authors']
                 for nn in G.predecessors(n):
                     G.add_edge(nn,doi)
                 for nn in G.successors(n):
@@ -101,7 +107,11 @@ def _findArticle(G:nx.DiGraph, a: dict):
         return(n)
 
 
-def build_citation_network(articles):
+def build_citation_network(articles:list)->nx.DiGraph:
+    """
+    Builds a directed graph to represent the citation network in the list of
+    articles.
+    """
     G=nx.DiGraph()
     print('citation network')
     for article in tqdm(articles):
@@ -111,3 +121,46 @@ def build_citation_network(articles):
             G.add_edge(citing,cited)
     return(G)
 
+def citation2cocitation(C:nx.DiGraph, threshold:int)->nx.Graph:
+    """
+    Builds a co-citation network from the citation network C.
+    Only pairs with more than 'threshold' citations are considered.
+    """
+    G=nx.Graph()
+    G.add_nodes_from(C)
+    print('Building co-citation')
+    for citing in tqdm(C):
+        cited=C.successors(citing)
+        for w1,w2 in combinations(cited,2):
+            G.add_edge(w1,w2)
+            G[w1][w2]['count']=G[w1][w2].setdefault('count',0)+1
+
+    #removing pairs that do not meet the count threshold
+    to_remove=[]
+    for e in G.edges():
+        if G[e[0]][e[1]]['count'] < threshold :
+            to_remove.append(e)
+    G.remove_edges_from(to_remove)
+
+    #removing isolated nodes
+    G.remove_nodes_from([n for n in G if len(list(G.neighbors(n)))==0])
+
+    # for n in G:
+    #     l=''
+    #     if C.node[n]['data']['authors']:
+    #         l=l+','.join([str(x) for x in C.node[n]['data']['authors']])
+    #     if C.node[n]['data']['year'] is not None:
+    #         l=l+'. '+C.node[n]['data']['year']
+    #     if ('title' in C.node[n]['data']) and (C.node[n]['data']['title'] is not None):
+    #         l=l+'. '+C.node[n]['data']['title']
+    #     if C.node[n]['data']['journal'] is not None:
+    #         l=l+'. '+C.node[n]['data']['journal']
+    #     G.node[n]['label']=l
+
+    # pos=nx.spring_layout(G)
+    # nx.draw_networkx_nodes(G,pos=pos,node_size=5)
+    # nx.draw_networkx_edges(G,pos=pos,width=[G[e[0]][e[1]]['count'] for e in G.edges()])
+    # nx.draw_networkx_labels(G,pos=pos,labels={n:G.node[n]['label'] for n in G.nodes()},font_size=8)
+    # plt.show()
+
+    return(G)
