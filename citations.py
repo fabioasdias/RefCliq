@@ -126,7 +126,7 @@ class CitationNetwork:
                     possibles_journal.extend(self._journal[token])
 
 
-        possibles=set(possibles_year).intersection(set(possibles_authors)).intersection(set(possibles_journal))
+        possibles=set(possibles_year).intersection(set(possibles_authors))#.intersection(set(possibles_journal))
         if not possibles:
             return(None)
 
@@ -137,11 +137,11 @@ class CitationNetwork:
         if not possibles:
             return(None)
 
-        # newPossibles=possibles.intersection(set(possibles_journal))
-        # difference=possibles-newPossibles
-        # for n in difference:
-        #     if (same_article(G.node[n]['data'],article)):
-        #         print('here lies the problem!')
+        newPossibles=possibles.intersection(set(possibles_journal))
+        difference=possibles-newPossibles
+        for n in difference:
+            if (same_article(G.node[n]['data'],article)):
+                print('here lies the problem!')
 
 
 
