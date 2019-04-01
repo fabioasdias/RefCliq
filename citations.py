@@ -32,6 +32,7 @@ class CitationNetwork:
             for cited_article in article['references']:
                 cited=self.find(cited_article)
                 G.add_edge(citing,cited)
+        self.build(articles)
 
     def add(self,article:dict,replaceNode:any=None)->any:
         """
