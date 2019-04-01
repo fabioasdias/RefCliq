@@ -12,6 +12,7 @@ class CitationNetwork:
         self._authors={1:[]}
         self._journal={0:[]}
         self._title={0:[]}
+        self._authorName={0:[]} #None might be a name
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
         # self._noDOI=[]
 
@@ -48,6 +49,11 @@ class CitationNetwork:
             if replaceNode:
                 # print('Replacing {0} with {1}'.format(replaceNode,ID))
                 n=replaceNode
+                if not isinstance(n,int): #aka this is already a DOI!
+                    self._equivalentDOIs[ID]=n #mark as equivalent
+                    return(n) #short-circuit the rest
+
+
                 for nn in G.predecessors(n):
                     G.add_edge(nn,ID)
                 for nn in G.successors(n):
@@ -60,9 +66,10 @@ class CitationNetwork:
                     self._journal[index].remove(n)
                 for index in G.node[n]['index']['title']:
                     self._title[index].remove(n)
+                for index in G.node[n]['index']['name']:
+                    self._authorName[index].remove(n)
+
                 G.remove_node(n)
-                if not isinstance(n,int): #aka this is already a DOI!
-                    self._equivalentDOIs[n]=ID
             #TODO merge the dicts to conserve as much info as possible
         else:
             ID=len(self._G)
@@ -110,6 +117,19 @@ class CitationNetwork:
         else:
             self._title[0].append(ID)
             G.node[ID]['index']['title']=[0,]
+
+        if ('authors' in article) and len(article['authors'])>0:
+            G.node[ID]['index']['name']=[]
+            for author in article['authors']:
+                for name in author.last_names:
+                    token=name.lower()
+                    G.node[ID]['index']['name'].append(token)
+                    if token not in self._authorName:
+                        self._authorName[token]=[]
+                    self._authorName[token].append(ID)
+        else:#no authors
+            self._authorName[0].append(ID)
+            G.node[ID]['index']['name']=[0,]
 
 
         return(ID)
@@ -175,6 +195,23 @@ class CitationNetwork:
                 possibles=possibles.intersection(possibles_title)
                 if not possibles:
                     return(None)
+
+        if ('authors' in fields):
+            possibles_authorName=[]
+            for author in article['authors']:
+                for name in author.last_names:
+                    token=name.lower()
+                    if token in self._authorName:
+                        possibles_authorName.extend(self._authorName[token][:])
+
+            #if we didn't find anything, dont filter by it
+            if possibles_authorName:
+                possibles_authorName.extend(self._authorName[0][:])
+                possibles_authorName=set(possibles_authorName)
+                possibles=possibles.intersection(possibles_authorName)
+                if not possibles:
+                    return(None)
+
 
         for n in possibles: 
             if same_article(G.node[n]['data'],article):

@@ -154,7 +154,7 @@ if __name__ == '__main__':
     citation_network.build(import_bibs(args))
     # nx.write_gpickle(citation_network,cn_cache)
     
-    print(thous(len(citation_network._G))+' different references.')
+    print(thous(len(citation_network._G))+' different references with '+thous(len(citation_network._G.edges()))+' edges')
 
     # co_citation_network=citation2cocitation(citation_network, threshold=options.edge_minimum)
     # print(len(co_citation_network))
