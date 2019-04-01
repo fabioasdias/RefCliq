@@ -11,7 +11,9 @@ class CitationNetwork:
         self._year={'None':[]}        #indexes
         self._authors={1:[]}
         self._journal={0:[]}
-        self._noDOI=[]
+        self._title={0:[]}
+        self._equivalentDOIs={} #yes, one paper can have more than one DOI
+        # self._noDOI=[]
 
     
 
@@ -53,11 +55,15 @@ class CitationNetwork:
                 #removes from the indexes
                 self._year[G.node[n]['index']['year']].remove(n)
                 self._authors[G.node[n]['index']['authors']].remove(n)
-                self._noDOI.remove(n)
+                # self._noDOI.remove(n)
                 for index in G.node[n]['index']['journal']:
                     self._journal[index].remove(n)
+                for index in G.node[n]['index']['title']:
+                    self._title[index].remove(n)
                 G.remove_node(n)
-                
+                if not isinstance(n,int): #aka this is already a DOI!
+                    self._equivalentDOIs[n]=ID
+            #TODO merge the dicts to conserve as much info as possible
         else:
             ID=len(self._G)
 
@@ -67,8 +73,8 @@ class CitationNetwork:
         #store which index in the node to make update easier
         G.node[ID]['index']={}
 
-        if ('doi' not in article) or (article['doi'] is None):
-            self._noDOI.append(ID)
+        # if ('doi' not in article) or (article['doi'] is None):
+        #     self._noDOI.append(ID)
 
         yearIndex=str(article['year'])
         G.node[ID]['index']['year']=yearIndex
@@ -94,6 +100,18 @@ class CitationNetwork:
             self._journal[0].append(ID)
             G.node[ID]['index']['journal']=[0,]
 
+        if ('title' in article) and (article['title'] is not None):
+            tokens=tokens_from_sentence(article['title'])
+            G.node[ID]['index']['title']=tokens
+            for token in tokens:
+                if token not in self._title:
+                    self._title[token]=[]
+                self._title[token].append(ID)
+        else:
+            self._title[0].append(ID)
+            G.node[ID]['index']['title']=[0,]
+
+
         return(ID)
 
     def _find_article_no_doi(self, article:dict):
@@ -110,6 +128,7 @@ class CitationNetwork:
             possibles_year.extend(self._year[article['year']][:])
         if not possibles_year:
             return(None)
+        possibles_year=set(possibles_year)
 
         possibles_authors=self._authors[1][:]
         nAuthors=len(article['authors'])
@@ -117,33 +136,45 @@ class CitationNetwork:
             possibles_authors.extend(self._authors[nAuthors][:])
         if not possibles_authors:
             return(None)
-            
+        
+        possibles_authors=set(possibles_authors)
+
+
+        possibles=possibles_authors.intersection(possibles_year)
+        if not possibles:
+            return(None)
+
+        
+
         if ('journal' in fields):
-            possibles_journal=self._journal[0][:]
+            possibles_journal=[]
             tokens=tokens_from_sentence(article['journal'])
             for token in tokens:
                 if token in self._journal:
-                    possibles_journal.extend(self._journal[token])
+                    possibles_journal.extend(self._journal[token][:])
 
+            #if we didn't find anything, dont filter by it
+            if possibles_journal:
+                possibles_journal.extend(self._journal[0][:])
+                possibles_journal=set(possibles_journal)
+                possibles=possibles.intersection(possibles_journal)
+                if not possibles:
+                    return(None)
 
-        possibles=set(possibles_year).intersection(set(possibles_authors))#.intersection(set(possibles_journal))
-        if not possibles:
-            return(None)
+        if ('title' in fields):
+            possibles_title=[]
+            tokens=tokens_from_sentence(article['title'])
+            for token in tokens:
+                if token in self._title:
+                    possibles_title.extend(self._title[token][:])
 
-        if ('doi' in article) and (article['doi'] is not None):
-            #if we are looking for something that has a DOI at this point, it
-            #will only be in the graph if we have it without DOI
-            possibles=possibles.intersection(set(self._noDOI))
-        if not possibles:
-            return(None)
-
-        newPossibles=possibles.intersection(set(possibles_journal))
-        difference=possibles-newPossibles
-        for n in difference:
-            if (same_article(G.node[n]['data'],article)):
-                print('here lies the problem!')
-
-
+            #if we didn't find anything, dont filter by it
+            if possibles_title:
+                possibles_title.extend(self._title[0][:])
+                possibles_title=set(possibles_title)
+                possibles=possibles.intersection(possibles_title)
+                if not possibles:
+                    return(None)
 
         for n in possibles: 
             if same_article(G.node[n]['data'],article):
@@ -163,9 +194,13 @@ class CitationNetwork:
         if ('doi' in article) and (article['doi'] is not None):
             if (article['doi'] in G):
                 return(article['doi'])
-            #article might be there, just not with a DOI yet                
-            else:    
-                return(self.add(article,self._find_article_no_doi(article)))
+            #we have that DOI, but replaced with another. We follow the path!
+            if (article['doi'] in self._equivalentDOIs):
+                eq=article['doi']
+                while eq not in G:
+                    eq=self._equivalentDOIs[eq]
+            #article might be there, just not with a DOI yet                                    
+            return(self.add(article,self._find_article_no_doi(article)))
 
         #article doesnt have a DOI
         n=self._find_article_no_doi(article)
@@ -187,9 +222,10 @@ def same_article(a1:dict, a2:dict)->bool:
         if (a1['year']!=a2['year']):
             return(False)
 
-    if 'doi' in usefulFields:
-        if (a1['doi']!=a2['doi']):
-            return(False)
+    # two articles can have the same doi!
+    # if 'doi' in usefulFields:
+    #     if (a1['doi']!=a2['doi']):
+    #         return(False)
 
 
     #article from references only have one author

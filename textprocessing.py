@@ -19,7 +19,9 @@ def tokens_from_sentence(sentence:str)->list:
       Only works in english.
     """
     stop_words = nltk_stopwords.words('english')
-    return([stemmer.stem(word).lower() for word in word_tokenize(sentence) if word not in stop_words])
+    words=[word.strip(punctuation).lower() for word in word_tokenize(sentence)]
+    words=[stemmer.stem(word) for word in words if (word not in stop_words) and (word!='')]
+    return(list(set(words)))
 
 
 #Stemmer for cleaning abstracts
