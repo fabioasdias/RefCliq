@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import networkx as nx
 from fuzzywuzzy.fuzz import ratio
 from tqdm import tqdm
@@ -249,6 +248,33 @@ class CitationNetwork:
         else:
             return(self.add(article))
 
+    def cocitation(self, count_label:str='count', copy_data:bool=True)->nx.Graph:
+        """
+        Builds a co-citation network from the citation network.
+        G[n1][n2][count_label] stores the co-citation count. 
+        "copy_data" determins if the ['data'] structure from the references will
+        also be copied to the co-citation network.
+        """
+        C=self._G
+        G=nx.Graph()
+        print('Building co-citation')
+        for citing in tqdm(C):
+            cited=C.successors(citing)
+            for w1,w2 in combinations(cited,2):
+                G.add_edge(w1,w2)
+                if count_label not in G[w1][w2]:
+                    G[w1][w2][count_label]=0
+                G[w1][w2][count_label]+=1
+
+        #removing isolated nodes
+        G.remove_nodes_from([n for n in G if len(list(G.neighbors(n)))==0])
+        if (copy_data):
+            for n in G:
+                G.node[n]['data']={**C.node[n]['data']}
+
+        return(G)
+
+
 def same_article(a1:dict, a2:dict)->bool:
     """
     Tests if two articles are the same based on their info. 
@@ -287,46 +313,3 @@ def same_article(a1:dict, a2:dict)->bool:
 
 
 
-def citation2cocitation(C:nx.DiGraph, threshold:int)->nx.Graph:
-    """
-    Builds a co-citation network from the citation network C.
-    Only pairs with more than 'threshold' citations are considered.
-    """
-    G=nx.Graph()
-    G.add_nodes_from(C)
-    print('Building co-citation')
-    for citing in tqdm(C):
-        cited=C.successors(citing)
-        for w1,w2 in combinations(cited,2):
-            G.add_edge(w1,w2)
-            G[w1][w2]['count']=G[w1][w2].setdefault('count',0)+1
-
-    #removing pairs that do not meet the count threshold
-    to_remove=[]
-    for e in G.edges():
-        if G[e[0]][e[1]]['count'] < threshold :
-            to_remove.append(e)
-    G.remove_edges_from(to_remove)
-
-    #removing isolated nodes
-    G.remove_nodes_from([n for n in G if len(list(G.neighbors(n)))==0])
-
-    # for n in G:
-    #     l=''
-    #     if C.node[n]['data']['authors']:
-    #         l=l+','.join([str(x) for x in C.node[n]['data']['authors']])
-    #     if C.node[n]['data']['year'] is not None:
-    #         l=l+'. '+C.node[n]['data']['year']
-    #     if ('title' in C.node[n]['data']) and (C.node[n]['data']['title'] is not None):
-    #         l=l+'. '+C.node[n]['data']['title']
-    #     if C.node[n]['data']['journal'] is not None:
-    #         l=l+'. '+C.node[n]['data']['journal']
-    #     G.node[n]['label']=l
-
-    # pos=nx.spring_layout(G)
-    # nx.draw_networkx_nodes(G,pos=pos,node_size=5)
-    # nx.draw_networkx_edges(G,pos=pos,width=[G[e[0]][e[1]]['count'] for e in G.edges()])
-    # nx.draw_networkx_labels(G,pos=pos,labels={n:G.node[n]['label'] for n in G.nodes()},font_size=8)
-    # plt.show()
-
-    return(G)

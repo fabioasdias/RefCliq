@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from tqdm import tqdm
 from pybtex.database.input import bibtex
 from pybtex.database import Person

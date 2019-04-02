@@ -21,7 +21,8 @@ setuptools.setup(
         "nltk",
         "tqdm",
         "titlecase",
-        "fuzzywuzzy[speedup]"
+        "fuzzywuzzy[speedup]",
+        "geocoder"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
