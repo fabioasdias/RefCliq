@@ -11,6 +11,7 @@ import nltk
 
 nltk.download('stopwords')
 nltk.download('punkt')
+
 stemmer = stem.snowball.EnglishStemmer()
 
 def tokens_from_sentence(sentence:str)->list:

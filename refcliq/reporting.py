@@ -1,14 +1,14 @@
+from __future__ import absolute_import
 from os.path import exists, join
 from os import makedirs
 import json
 from xml.etree import ElementTree as et
 from xml.etree.ElementTree import Element, SubElement, tostring
 from collections import Counter
-from textprocessing import stopwords, get_stopwords, keywords, cite_keywords
 import networkx as nx
 from string import punctuation
-from util import thous
-
+from refcliq.util import thous
+from refcliq.textprocessing import stopwords, get_stopwords, keywords, cite_keywords
 
 def make_filename(string):
     punctuation = '''!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~'''

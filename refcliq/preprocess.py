@@ -1,11 +1,11 @@
-
+from __future__ import absolute_import
 from tqdm import tqdm
 from pybtex.database.input import bibtex
 from pybtex.database import Person
-from util import thous
 import re
 from titlecase import titlecase
-from bibtex import parse
+from refcliq.bibtex import parse
+from refcliq.util import thous
 
 _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')

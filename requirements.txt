@@ -1,7 +1,1 @@
-python-louvain
-numpy
-pybtex
-nltk
-tqdm
-titlecase
-fuzzywuzzy[speedup]
+.

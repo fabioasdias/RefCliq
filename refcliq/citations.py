@@ -1,10 +1,13 @@
+from __future__ import absolute_import
 import networkx as nx
 from fuzzywuzzy.fuzz import ratio
 from tqdm import tqdm
 from itertools import combinations
 from collections import Counter
-from textprocessing import tokens_from_sentence
 from math import floor
+
+
+from refcliq.textprocessing import tokens_from_sentence
 class CitationNetwork:
     def __init__(self):
         self._G=nx.DiGraph() #the network

@@ -17,16 +17,17 @@ http://perso.crans.org/aynaud/communities/
 ##note: seems to be screwing up where the person has lots of intials.###
 """
 
-
+from __future__ import absolute_import
 import itertools
 import glob
 import networkx as nx
 import community
-from citations import CitationNetwork
+
 from optparse import OptionParser
-from preprocess import import_bibs
-from reporting import d3_export, gexf_export, clique_report
-from util import thous
+from refcliq.citations import CitationNetwork
+from refcliq.preprocess import import_bibs
+from refcliq.reporting import d3_export, gexf_export, clique_report
+from refcliq.util import thous
 
 from os.path import exists
 
