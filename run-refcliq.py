@@ -30,7 +30,7 @@ from refcliq.util import thous
 from refcliq.geocoding import ArticleGeoCoder
 
 from os.path import exists
-
+from tqdm import tqdm
     
 def make_journal_list(cited_works):
     """    Is it a journal or a book?
@@ -73,8 +73,19 @@ if __name__ == '__main__':
         parser.print_help()
         exit(-1)
 
-    citation_network=CitationNetwork()
-    citation_network.build(import_bibs(args))
+
+    gc=ArticleGeoCoder()
+    articles=import_bibs(args)
+    print('caching')
+    for a in tqdm(articles):
+        if ('Affiliation' in a) and (a['Affiliation']):
+            gc._get_coordinates(a['Affiliation'])
+    print('Nominatim calls', gc._nominatim_calls)
+
+    exit()
+
+    citation_network=CitationNetwork()    
+    citation_network.build(articles)
     
     print(thous(len(citation_network._G))+' different references with '+thous(len(citation_network._G.edges()))+' edges')
 
@@ -89,7 +100,6 @@ if __name__ == '__main__':
     # co_citation_network.remove_edges_from(to_remove)
     # co_citation_network.remove_nodes_from([n for n in co_citation_network if len(list(co_citation_network.neighbors(n)))==0])
 
-    gc=ArticleGeoCoder()
     co_citation_network=gc.update_network(co_citation_network)
 
     partition = best_partition(co_citation_network, weight='count') 
