@@ -79,7 +79,7 @@ if __name__ == '__main__':
     print(thous(len(citation_network._G))+' different references with '+thous(len(citation_network._G.edges()))+' edges')
 
     co_citation_network=citation_network.cocitation()
-    print(options.edge_minimum,len(co_citation_network),len(co_citation_network.edges()))    
+    # print(options.edge_minimum,len(co_citation_network),len(co_citation_network.edges()))    
 
     # #removing pairs that do not meet the count threshold
     # to_remove=[]

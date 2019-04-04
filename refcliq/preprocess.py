@@ -4,15 +4,10 @@ from pybtex.database import Person
 import re
 from titlecase import titlecase
 from refcliq.bibtex import parse
-from refcliq.util import thous
+from refcliq.util import thous, cleanCurlyAround
 
 _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')
-def _cleanCurly(s:str)->str:
-    """Removes curly braces"""
-    if not s:
-        return(s)
-    return(s.replace('{',''). replace('}',''))
 
 def _properName(name:str)->str:
     """
@@ -78,7 +73,7 @@ def extract_article_info(fields, people, references:list)->dict:
     "references" is the raw Cited-References field from WoS' with \n s
     """
 
-    abstract = _cleanCurly(fields.get('abstract',''))
+    abstract = cleanCurlyAround(fields.get('abstract',''))
     if ' (C) ' in abstract:
         abstract = abstract.split(' (C) ')[0]
 
@@ -93,18 +88,18 @@ def extract_article_info(fields, people, references:list)->dict:
 
     doi=fields.get('doi',None)
     if doi:
-        doi=_cleanCurly(doi.lower())
+        doi=cleanCurlyAround(doi.lower())
 
     return {'Affiliation': fields.get('Affiliation',''),
             'authors': people.get("author",[]),
-            'year': _cleanCurly(fields.get('year',None)),
+            'year': cleanCurlyAround(fields.get('year',None)),
             'doi' : doi,
-            'title' : _cleanCurly(fields.get("title",None)),
-            'journal' : _cleanCurly(fields.get('series', fields.get('journal',None) )),
-            'volume' : _cleanCurly(fields.get('volume',None)),
-            'pages' : _cleanCurly(fields.get('pages',None)),
+            'title' : cleanCurlyAround(fields.get("title",None)),
+            'journal' : cleanCurlyAround(fields.get('series', fields.get('journal',None) )),
+            'volume' : cleanCurlyAround(fields.get('volume',None)),
+            'pages' : cleanCurlyAround(fields.get('pages',None)),
             'references' : refs,
-            'number' : _cleanCurly(fields.get('number',None)),
+            'number' : cleanCurlyAround(fields.get('number',None)),
             'abstract' : abstract }
 
 def import_bibs(filelist:list) -> list:

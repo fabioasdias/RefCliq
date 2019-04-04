@@ -51,7 +51,7 @@ class CitationNetwork:
             if replaceNode:
                 # print('Replacing {0} with {1}'.format(replaceNode,ID))
                 n=replaceNode
-                if not isinstance(n,int): #aka this is already a DOI!
+                if n[0] != '-': #aka this is already a DOI!
                     self._equivalentDOIs[ID]=n #mark as equivalent
                     return(n) #short-circuit the rest
 
@@ -74,7 +74,7 @@ class CitationNetwork:
                 G.remove_node(n)
             #TODO merge the dicts to conserve as much info as possible
         else:
-            ID=len(self._G)
+            ID='-'+str(len(self._G))
 
         G.add_node(ID)
         G.node[ID]['data']=article
@@ -259,7 +259,7 @@ class CitationNetwork:
         G=nx.Graph()
         print('Building co-citation')
         for citing in tqdm(C):
-            cited=C.successors(citing)
+            cited=list(C.successors(citing))
             for w1,w2 in combinations(cited,2):
                 G.add_edge(w1,w2)
                 if count_label not in G[w1][w2]:

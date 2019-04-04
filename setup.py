@@ -22,7 +22,8 @@ setuptools.setup(
         "tqdm",
         "titlecase",
         "fuzzywuzzy[speedup]",
-        "geocoder"
+        "geocoder",
+        "postal"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
