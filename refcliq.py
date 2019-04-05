@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-refcliq..py
+refcliq.py
 
 Created by Neal Caren on June 26, 2013.
 neal.caren@gmail.com
@@ -24,10 +24,10 @@ import networkx as nx
 from community import best_partition
 
 from optparse import OptionParser
-from refcliq.citations import CitationNetwork
-from refcliq.preprocess import import_bibs
-from refcliq.util import thous
-from refcliq.geocoding import ArticleGeoCoder
+from src.refcliq.citations import CitationNetwork
+from src.refcliq.preprocess import import_bibs
+from src.refcliq.util import thous
+from src.refcliq.geocoding import ArticleGeoCoder
 
 from os.path import exists
 from tqdm import tqdm
@@ -67,7 +67,6 @@ if __name__ == '__main__':
                     dest="directory_name",default='clusters')
     (options, args) = parser.parse_args()
 
-    #Import files
     if len(args)==0:
         print('\nNo input files!\n')
         parser.print_help()
@@ -75,11 +74,18 @@ if __name__ == '__main__':
 
 
     gc=ArticleGeoCoder()
+    print('Reading .bibs')
     articles=import_bibs(args)
     print('caching')
     for a in tqdm(articles):
         if ('Affiliation' in a) and (a['Affiliation']):
-            gc._get_coordinates(a['Affiliation'])
+            try:
+                gc._get_coordinates(a['Affiliation'])
+            except:
+                print(a)
+                print(a.keys())
+                print(a['Affiliation'])
+                raise
     print('Nominatim calls', gc._nominatim_calls)
 
     exit()
@@ -90,16 +96,6 @@ if __name__ == '__main__':
     print(thous(len(citation_network._G))+' different references with '+thous(len(citation_network._G.edges()))+' edges')
 
     co_citation_network=citation_network.cocitation()
-    # print(options.edge_minimum,len(co_citation_network),len(co_citation_network.edges()))    
-
-    # #removing pairs that do not meet the count threshold
-    # to_remove=[]
-    # for e in co_citation_network.edges():
-    #     if co_citation_network[e[0]][e[1]]['count'] < options.edge_minimum :
-    #         to_remove.append(e)
-    # co_citation_network.remove_edges_from(to_remove)
-    # co_citation_network.remove_nodes_from([n for n in co_citation_network if len(list(co_citation_network.neighbors(n)))==0])
-
     co_citation_network=gc.update_network(co_citation_network)
 
     partition = best_partition(co_citation_network, weight='count') 

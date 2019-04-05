@@ -1,4 +1,5 @@
 import re
+from src.refcliq.util import cleanCurlyAround
 
 _firstLinePattern=re.compile(r"@(?P<kind>.*?){([\s]*(?P<id>[^,\s]+),)")
 _fieldPattern=re.compile(r"(?P<name>[\w-]+?)[\s]*=[\s]*({(?P<content>.*)})",    flags=re.IGNORECASE|re.DOTALL) 
@@ -34,9 +35,7 @@ def parse(bibfile:str, keepOnly:list=None)->dict:
                 if (match):
                     name=match.group("name")
                     if (name is not None) and ((keepOnly is None) or (name in keepOnly)):
-                        content=match.group("content")
-                        if (content[0]=='{') and (content[-1]=='}'):
-                            content=content[1:-1]
+                        content=cleanCurlyAround(match.group("content")).strip()
                         ret[currentEntry][match.group("name")]=content
                 currentField=''
             

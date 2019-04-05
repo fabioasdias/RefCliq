@@ -6,7 +6,7 @@ from collections import Counter
 from math import floor
 
 
-from refcliq.textprocessing import tokens_from_sentence
+from src.refcliq.textprocessing import tokens_from_sentence
 class CitationNetwork:
     def __init__(self):
         self._G=nx.DiGraph() #the network

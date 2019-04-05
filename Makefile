@@ -1,7 +1,7 @@
 all: clean
 	python3 setup.py sdist bdist_wheel
-	python3 -m twine upload dist/*
+	# python3 -m twine upload dist/*
 clean:	
 	-rm -rf dist
 	-rm -rf build
-	-rm -rf refcliq.egg-info
+	-rm -rf src/*.egg-info

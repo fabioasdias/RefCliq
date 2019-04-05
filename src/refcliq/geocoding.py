@@ -1,6 +1,6 @@
 import geocoder
 from os.path import exists
-from refcliq.util import cleanCurlyAround
+from src.refcliq.util import cleanCurlyAround
 import re
 import networkx as nx
 from fuzzywuzzy.process import extractOne
@@ -96,8 +96,10 @@ class ArticleGeoCoder:
         print('Getting coordinates')
         for n in tqdm(G):
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None):
-                coords=self._get_coordinates(G.node[n]['data']['Affiliation'])
-                G.node[n]['data']['coords']=coords
+                city,country,names=self._get_coordinates(G.node[n]['data']['Affiliation'])
+                G.node[n]['data']['accurate_coords']=city
+                G.node[n]['data']['country_coords']=country
+                G.node[n]['data']['countries']=names
         return(G)
 
     def _nominatim(self, address:str)->list:
@@ -130,8 +132,8 @@ class ArticleGeoCoder:
             - Name of the country.
         """
         # print('---- Doing', full_address)
-        #OSM doesn't understand PRC, USA addresses are usually ", CA 95000 USA"
-        address_to_use=full_address.replace('Peoples R','').replace(' USA',', USA')
+        #OSM doesn't understand PRC; USA addresses are usually ", CA 95000 USA" ; Rep of Georgia doesn't work either
+        address_to_use=full_address.replace('Peoples R','').replace(' USA',', USA').replace('Rep of','')
         
         #removes all words with digits on them - without removing commas - "11215," 
         all_vals=[' '.join([word for word in x.split() if not any([c.isdigit() for c in word])]) for x in address_to_use.split(',')]
@@ -158,8 +160,9 @@ class ArticleGeoCoder:
                 #not found, let's try with fewer parts
                 i-=1
             else:
-                if i==1:              
-                    self._add(address,coords,country=True)                           
+                if i==1:      
+                    if coords:        
+                        self._add(address,coords,country=True)                           
                     if (cacheChanged):
                         self._save_state()
                     return(accurate,coords,country)
@@ -182,14 +185,13 @@ class ArticleGeoCoder:
 
         accurate_coords=[]
         country_coords=[]
-        country_names=[]
+        country_names={}
         for address in addresses:
             accurate,country,name=self._lookup(address)
             if accurate:
                 accurate_coords.append(accurate)
-            if country:
+            if country and (name not in country_names):
                 country_coords.append(country)
-            country_names.append(name)
+                country_names[name]=True #checking in a dictionary is faster than in a list
                 
-
-        return(accurate_coords,country_coords,country_names)
+        return(accurate_coords, country_coords, list(country_names.keys()))

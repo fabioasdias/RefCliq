@@ -3,8 +3,8 @@ from pybtex.database.input import bibtex
 from pybtex.database import Person
 import re
 from titlecase import titlecase
-from refcliq.bibtex import parse
-from refcliq.util import thous, cleanCurlyAround
+from src.refcliq.bibtex import parse
+from src.refcliq.util import thous, cleanCurlyAround
 
 _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')
@@ -124,15 +124,13 @@ def import_bibs(filelist:list) -> list:
             bibdata = parser.parse_file(filename)
 
             for bib_id in bibdata.entries:
-                # print(filename,bib_id)
                 articles.append(extract_article_info(bibdata.entries[bib_id].fields,
                                                 bibdata.entries[bib_id].persons,
                                                 references[bib_id][references_field]))
 
         except:
             print('Error with the file ' + filename)
-            print(bib_id,filename)
-            raise
+            # raise
 
     print('Imported %s articles.' % thous(len(articles)))
     return(articles)
