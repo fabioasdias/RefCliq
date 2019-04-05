@@ -1,57 +1,33 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-refcliq.py
+RefCliq is a rewrite of Neal Caren's original script.
 
-Created by Neal Caren on June 26, 2013.
+git: https://github.com/fabioasdias/RefCliq
+
+The idea is the same, but with improved article matching, a more stable
+clustering method (the same python-louvain community, but considering the number
+of co-cites), geo-coding support for the authors, and a web interface for the
+visualization of the results.
+
+
+Original: 
+https://github.com/nealcaren/RefCliq 
+Created by Neal Caren on June 26, 2013. 
 neal.caren@gmail.com
-
-Dependencies:
-pybtex
-networkx
-community
-
-Note: community is available from:
-http://perso.crans.org/aynaud/communities/
-
-##note: seems to be screwing up where the person has lots of intials.###
 """
 
-from __future__ import absolute_import
-import itertools
-import glob
-import networkx as nx
 from community import best_partition
-
 from optparse import OptionParser
+
 from src.refcliq.citations import CitationNetwork
 from src.refcliq.preprocess import import_bibs
 from src.refcliq.util import thous
 from src.refcliq.geocoding import ArticleGeoCoder
 
-from os.path import exists
 from tqdm import tqdm
     
-def make_journal_list(cited_works):
-    """    Is it a journal or a book?
-    A journal is somethign with more than three 
-    years of publication Returns a
-    dictionary that just lists the journals""" 
-    cited_journals = {}
-    for item in cited_works:
-        title = item.split(') ')[-1]
-        year = item.split(' (')[1].split(')')[0]
-        try:
-            if year not in cited_journals[title]:
-                cited_journals[title].append(year)
-        except:
-            cited_journals[title] = [year]
-    cited_journals = {j:True for j in cited_journals if len(set(cited_journals[j])) > 3 or 'J ' in j}
-    return cited_journals
-
-
 if __name__ == '__main__':
-
     parser = OptionParser()
     # parser.add_option("-n", "--node_minimum",
     #                 action="store", type="int", 
@@ -87,17 +63,10 @@ if __name__ == '__main__':
                 print(a['Affiliation'])
                 raise
     print('Nominatim calls', gc._nominatim_calls)
-
     exit()
-
     citation_network=CitationNetwork()    
     citation_network.build(articles)
-    
     print(thous(len(citation_network._G))+' different references with '+thous(len(citation_network._G.edges()))+' edges')
-
     co_citation_network=citation_network.cocitation()
     co_citation_network=gc.update_network(co_citation_network)
-
     partition = best_partition(co_citation_network, weight='count') 
-
-    # clique_report(co_citation_network, citation_network, partition, no_of_cites=25)
