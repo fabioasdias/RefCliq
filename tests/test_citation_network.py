@@ -10,5 +10,6 @@ class TestCN(object):
         cn.build(articles)
         assert(len(cn._G)==3)
         assert(len(cn._G.edges())==6)
+
     def test_add(self):
         pass

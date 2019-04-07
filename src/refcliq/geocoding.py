@@ -88,10 +88,11 @@ class ArticleGeoCoder:
         else:
             self._cache[address]=coords[:]
 
-    def update_network(self, G:nx.Graph):
+    def add_authors_location_inplace(self, G:nx.Graph):
         """
             For every node of G (a reference in the network), finds the
             coordinates based from the 'Affiliation' bibtex field, if present.
+            _Alters the data of G_.
         """
         print('Getting coordinates')
         for n in tqdm(G):

@@ -52,21 +52,9 @@ if __name__ == '__main__':
     gc=ArticleGeoCoder()
     print('Reading .bibs')
     articles=import_bibs(args)
-    print('caching')
-    for a in tqdm(articles):
-        if ('Affiliation' in a) and (a['Affiliation']):
-            try:
-                gc._get_coordinates(a['Affiliation'])
-            except:
-                print(a)
-                print(a.keys())
-                print(a['Affiliation'])
-                raise
-    print('Nominatim calls', gc._nominatim_calls)
-    exit()
     citation_network=CitationNetwork()    
     citation_network.build(articles)
     print(thous(len(citation_network._G))+' different references with '+thous(len(citation_network._G.edges()))+' edges')
     co_citation_network=citation_network.cocitation()
-    co_citation_network=gc.update_network(co_citation_network)
+    gc.add_authors_location_inplace(co_citation_network)
     partition = best_partition(co_citation_network, weight='count') 

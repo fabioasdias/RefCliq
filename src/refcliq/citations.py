@@ -294,14 +294,14 @@ def same_article(a1:dict, a2:dict)->bool:
     #         return(False)
 
 
-    #article from references only have one author
+    #article from references only have one author that we know of
     L1=len(a1['authors'])
     L2=len(a2['authors'])
     if (L1!=1) and (L2!=1) and (L1!=L2):
         return(False)
-    #We have same year, same title / journal
+    
     for i in range(min([L1,L2])):
-        if ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80:
+        if (ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80) and (ratio(' '.join(a1['authors'][i].last_names),' '.join(a2['authors'][i].last_names))<=80):
             return(False)
 
     for field in ['title','journal','page','vol']:
