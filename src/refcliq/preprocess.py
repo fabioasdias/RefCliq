@@ -109,6 +109,7 @@ def import_bibs(filelist:list) -> list:
     """
     articles = []
     references_field="Cited-References"
+    print('Reading .bibs')
     for filename in tqdm(filelist):
         try:
             #since pybtex removes the \n from this field, we do it ourselves

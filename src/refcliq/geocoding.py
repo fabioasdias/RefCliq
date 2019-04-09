@@ -13,15 +13,13 @@ PARTSCACHE='parts.tsv'
 
 _addressPattern=re.compile(r"(?P<last>[\w]+),(?P<first>(([\w]+)| |([A-Z](\.)?))*)(\(.*?\))?,(?P<rest>[^.]+)", re.IGNORECASE)
 
-
 class ArticleGeoCoder:
     def __init__(self):
         self._cache={}
         self._country_cache={}#otherwise "xxxx USA" returns "USA"'s entry from the cache...
         self._parts_by_country={}
-        self._last_request=monotonic()
+        self._last_request=monotonic() #keeps track of the last time we used nominatim
         self._nominatim_calls=0
-        self._deltas=[]
         if exists(GEOCACHE):
             self._cache=self._read_cache(GEOCACHE)
         if exists(PARTSCACHE):
@@ -94,13 +92,13 @@ class ArticleGeoCoder:
             coordinates based from the 'Affiliation' bibtex field, if present.
             _Alters the data of G_.
         """
-        print('Getting coordinates')
+        print('Getting coordinates for each author affiliation')
         for n in tqdm(G):
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None):
-                city,country,names=self._get_coordinates(G.node[n]['data']['Affiliation'])
-                G.node[n]['data']['accurate_coords']=city
-                G.node[n]['data']['country_coords']=country
-                G.node[n]['data']['countries']=names
+                city,country,names = self._get_coordinates(G.node[n]['data']['Affiliation'])
+                G.node[n]['data']['accurate_coords'] = city
+                G.node[n]['data']['country_coords'] = country
+                G.node[n]['data']['countries'] = names
         return(G)
 
     def _nominatim(self, address:str)->list:
@@ -110,16 +108,15 @@ class ArticleGeoCoder:
             Returns (x,y) or None if not found.
         """
         #we can only do one query per second on public nominatim
-        delta=monotonic()-self._last_request
-        self._deltas.append(delta)
-        if delta<=1:
+        delta = monotonic() - self._last_request
+        if delta <= 1:
             sleep(1-delta)
         res=geocoder.osm(address)#, url='http://192.168.2.47/nominatim/')
         # print('osm req', address, self._nominatim_calls)
-        self._nominatim_calls+=1
-        self._last_request=monotonic()
+        self._nominatim_calls += 1
+        self._last_request = monotonic()
         if res and res.ok:
-            return([res.osm['x'],res.osm['y']])
+            return([res.osm['x'], res.osm['y']])
         else:
             return(None)
 

@@ -1,99 +1,74 @@
 from collections import Counter
-from nltk import stem
 from string import punctuation
 from nltk.tokenize import word_tokenize
-
-# Load library
 from nltk.corpus import stopwords as nltk_stopwords
+from nltk import WordNetLemmatizer, download
+from nltk.stem import snowball
+import networkx as nx
+from collections import Counter
+from math import log
+from tqdm import tqdm
 
-# You will have to download the set of stop words the first time
-import nltk
+download('stopwords')
+download('punkt')
+download('wordnet')
 
-nltk.download('stopwords')
-nltk.download('punkt')
+stemmer = snowball.EnglishStemmer()
 
-stemmer = stem.snowball.EnglishStemmer()
-
-def tokens_from_sentence(sentence:str)->list:
+def tokens_from_sentence(sentence:str, remove_duplicates:bool=True)->list:
     """
       Returns a list of "important" words in a sentence.
-      Only works in english.
+      Only works in English but returned tokens may not be proper English.
     """
     stop_words = nltk_stopwords.words('english')
-    words=[word.strip(punctuation).lower() for word in word_tokenize(sentence)]
+    remove_punct=str.maketrans('', '', punctuation)
+    words=[word.translate(remove_punct).lower() for word in word_tokenize(sentence)]
     words=[stemmer.stem(word) for word in words if (word not in stop_words) and (word!='')]
-    return(list(set(words)))
+    if remove_duplicates:
+      return(list(set(words)))
+    else:
+      return(words)
 
+def compute_keywords_inplace(G: nx.DiGraph, number_of_words=5, keyword_label:str='keywords', citing_keywords_label:str='citing-keywords'):
+    """
+      For each article that has an abstract, compute the corresponding keywords
+      and add them to the 'data' dictionary, under "keyword_label".
+      The whole dataset is necessary to compute the idf part of tf-idf.
+    """
+    corpus={}
+    tfs={}
+    stop_words = nltk_stopwords.words('english')
+    lemmatizer=WordNetLemmatizer()
+    remove_punct = str.maketrans('', '', punctuation)
+    idfs={}
+    print('Computing tf-idf')
+    for n in tqdm(G):
+        if ('data' in G.node[n]) and ('abstract' in G.node[n]['data']) and (len(G.node[n]['data']['abstract']) > 0):
+        # lemmas=[lemmatizer.lemmatize(word.translate(remove_punct)).lower() for word in tokens_from_sentence(G.node[n]['data']['abstract'],remove_duplicates=False)]
+            lemmas=[lemmatizer.lemmatize(word.translate(remove_punct),pos='s').lower() for word in word_tokenize(G.node[n]['data']['abstract'])]
+            corpus[n]=[word for word in lemmas if (word not in stop_words) and (word!='')]
+            count=Counter(corpus[n])
+            most=count.most_common(1)[0]
+            tfs[n]={word:(count[word]/most[1]) for word in count}
+            for word in count:
+                idfs[word]=idfs.get(word,0)+1
+    idfs={word:log(len(corpus)/(1+idfs[word])) for word in idfs}
 
-#Stemmer for cleaning abstracts
+    print('Keywords')
+    for n in tqdm(tfs):
+        G.node[n]['data'][keyword_label]=sorted([(w,tfs[n][w]*idfs[w]) for w in tfs[n]],key=lambda x:x[1],reverse=True)[:number_of_words]
 
-def stem_word(word):
-    return stemmer.stem(word)
-
-def split_and_clean(sentence):
-    #turn string into a list of unique, lower-cased words
-    # punctuation = '''!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~'''
-    words = [str(w.strip(punctuation).lower()) for w in sentence.split()]
-    return list(set(words))
-
-def make_word_freq(list_of_texts):
-    #returns the % of documents containing each word
-    document_count =float(len(list_of_texts))
-    #Split and clean each of the texts.
-    list_of_texts = [split_and_clean(text) for text in list_of_texts]
-    #flatten list
-    words = [word for text in list_of_texts for word in text if len(word)>1 ]
-    # % of docuemnts that have each word.
-
-    #I've resisted using collections.Counter but it is really fast.
-    word_counts = Counter(words)
-    word_freq = {word : (word_counts[word]/document_count) for word in word_counts}
-    return word_freq
-
-def clean_abstract(abstract):
-    #takes a string and returns a list of unique words minus punctation.
-    #Stemming should probably be an option, not a requirement
-    words = list(set([ stem_word(word.strip(punctuation)) for word in abstract.lower().split()]))
-    words = [w for w in words if len(w)>0]
-    return words
-
-def stopwords(articles, minfreq =.2):
-    #list of commonly occuring words. You need to set the threshold low for most small texts.
-    abstracts = [article['abstract'] for article in articles if len(article['abstract']) > 0 ]
-    word_freq = make_word_freq(abstracts)
-    stop_words = list(set(word for word in word_freq if word_freq[word] > minfreq ))
-    return stop_words
-
-def keywords(abstracts,stopword_list,n=10):
-    #abstracts = [article['abstract'] for article in articles if len(article['abstract']) > 0 ]
-    word_freq = make_word_freq(abstracts)
-    word_freq = {w : word_freq[w] for w in word_freq if w not in stopword_list}
-    top_words = sorted(word_freq, key=word_freq.get, reverse=True)[:n]
-    return top_words
-
-def get_stopwords()->list:
-    return(['do','and', 'among', 'findings', 'is', 'in', 'results', 'an', 'as', 'are', 'only', 'number',
-              'have', 'using', 'research', 'find', 'from', 'for', 'to', 'with', 'than', 'since','most',
-             'also', 'which', 'between', 'has', 'more', 'be', 'we', 'that', 'but', 'it', 'how',
-             'they', 'not', 'article', 'on', 'data', 'by', 'a', 'both', 'this', 'of', 'study', 'analysis',
-             'their', 'these', 'social', 'the', 'or','may', 'whether', 'them'', only',
-             'implication','our','less','who','all','based','less','was',
-           'its','new','one','use','these','focus','result','test',
-           'finding','relationship','different','their','more','between',
-           'article','study','paper','research','sample','effect','case','argue','three',
-           'affect','extent','when','implications','been','data','even','examine','toward',
-           'effects','analysis','into','support','show','within','what','were',
-           'associated','suggest','those','over','however','while','indicate','about',
-           'such','other','because','can','both','n','find','using','have','not',
-           'some','likely','findings','but','results','among','has','how','which',
-           'they','be','i','two','than','how','which','be','across','also','it','through','at'])
-
-def cite_keywords(cite, stopword_list, articles, n = 5):
-    words_ab= [article.get('abstract') for article in articles if cite in article['references']]
-    words_title= [article.get('title') for article in articles if cite in article['references'] and len(article.get('abstract'))<5 ]
-    words = words_title + words_ab
+    print('Citing keywords')
+    for n in tqdm(G):
+        keywords = []
+        for citing in G.predecessors(n):
+            if keyword_label in G.node[citing]['data']: #not all citing articles have abstracts
+                keywords.extend(G.node[citing]['data'][keyword_label])
+        if len(keywords) > number_of_words:
+            keywords=sorted(keywords, key=lambda x:x[1], reverse=True)[:number_of_words]
+        G.node[n]['data'][citing_keywords_label] = keywords
+        
     
-    stopwords= get_stopwords()
-    stopword_list = stopword_list + stopwords
-    cite_words = keywords(words,stopword_list,n=n)
-    return cite_words
+      
+
+  

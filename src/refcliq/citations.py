@@ -8,15 +8,17 @@ from math import floor
 
 from src.refcliq.textprocessing import tokens_from_sentence
 class CitationNetwork:
-    def __init__(self):
+    def __init__(self, articles:list=None):
         self._G=nx.DiGraph() #the network
         self._year={'None':[]}        #indexes
         self._authors={1:[]}
         self._journal={0:[]}
         self._title={0:[]}
-        self._authorName={0:[]} #None might be a name
+        self._authorName={0:[]} #None might be a part of a name
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
-        # self._noDOI=[]
+        if articles:
+            self.build(articles)
+
 
     
 
@@ -36,7 +38,7 @@ class CitationNetwork:
                 cited=self.find(cited_article)
                 G.add_edge(citing,cited)
 
-    def add(self,article:dict,replaceNode:any=None)->any:
+    def add(self, article:dict, replaceNode:str=None)->str:
         """
         Adds a new citation to the network.
         if replaceNode is given, replaces that node in the network
@@ -53,7 +55,7 @@ class CitationNetwork:
                 n=replaceNode
                 if n[0] != '-': #aka this is already a DOI!
                     self._equivalentDOIs[ID]=n #mark as equivalent
-                    return(n) #short-circuit the rest
+                    return(n) #short-circuits the rest
 
 
                 for nn in G.predecessors(n):
@@ -63,7 +65,6 @@ class CitationNetwork:
                 #removes from the indexes
                 self._year[G.node[n]['index']['year']].remove(n)
                 self._authors[G.node[n]['index']['authors']].remove(n)
-                # self._noDOI.remove(n)
                 for index in G.node[n]['index']['journal']:
                     self._journal[index].remove(n)
                 for index in G.node[n]['index']['title']:
@@ -71,10 +72,17 @@ class CitationNetwork:
                 for index in G.node[n]['index']['name']:
                     self._authorName[index].remove(n)
 
+                for field in [f for f in G.node[n]['data'] if G.node[n]['data'][f]]:
+                    if (field=='abstract') and (G.node[n]['data'][field]!='') and (article[field]==''):
+                        article[field]=G.node[n]['data'][field]
+                    elif (field=='authors') and len(G.node[n]['data']['authors'])>len(article['authors']):
+                        article['authors']=G.node[n]['data']['authors'][:]
+                    elif (field not in article) or (not article[field]):
+                        article[field]=G.node[n]['data'][field]
+
                 G.remove_node(n)
-            #TODO merge the dicts to conserve as much info as possible
         else:
-            ID='-'+str(len(self._G))
+            ID='-'+str(len(self._G)) #flags as non-DOI
 
         G.add_node(ID)
         G.node[ID]['data']=article
@@ -288,7 +296,7 @@ def same_article(a1:dict, a2:dict)->bool:
         if (a1['year']!=a2['year']):
             return(False)
 
-    # two articles can have the same doi!
+    # two articles can have the same doi! 
     # if 'doi' in usefulFields:
     #     if (a1['doi']!=a2['doi']):
     #         return(False)
@@ -309,7 +317,3 @@ def same_article(a1:dict, a2:dict)->bool:
             return(False)
 
     return(True)
-
-
-
-
