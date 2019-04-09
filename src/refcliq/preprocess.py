@@ -30,13 +30,20 @@ def _properName(name:str)->str:
             rest.append(titlecase(v.lower()))
     return(last+", "+' '.join(rest).replace(".",""))
 
+def dict_update_notNone_inplace(D:dict,k:any,val:any):
+    """
+        Adds the pair (k,val) to the dictionary D if val is not None.
+        This helps keep the resulting json smaller (by not adding a bunch of null keys).
+    """
+    if val is not None:
+        D[k]=val
 
 def split_reference(reference:str)->dict:
     """
     Generates a dictionary with the info present on the _single_ reference line.
 
     references: raw text from "cited-references" WoS's .bib (with \n!)
-    return: {author, year ,journal, vol, page, doi}. None for missing values.
+    return: {author, year ,journal, vol, page, doi}, if they are not null.
     """
     #removes the \_ from DOIs
     ref=reference.replace(r"\_","_")
@@ -48,22 +55,16 @@ def split_reference(reference:str)->dict:
     match=_citePattern.search(ref)
     
     if match:
-        article={'authors' : [Person(string=_properName(match.group('author'))),],
-            'year' : match.group('year'), 
-            'journal' : titlecase(match.group('journal')),
-            'vol' : match.group('vol'), 
-            'inPress' : False,
-            'page' : match.group('page'), 
-            'doi' : match.group('doi')}
+        article={'authors' : [Person(string=_properName(match.group('author'))),]}
+        dict_update_notNone_inplace(article, 'year', match.group('year'))
+        dict_update_notNone_inplace(article, 'journal',titlecase(match.group('journal')))
+        dict_update_notNone_inplace(article, 'vol', match.group('vol'))
+        dict_update_notNone_inplace(article, 'page', match.group('page'))
+        dict_update_notNone_inplace(article, 'doi', match.group('doi'))
     # we know this is a reference. It might be only the name of the publication
     else:
         article={'authors':[],
                  'journal': titlecase(reference),
-                 'year':None,
-                 'vol': None,
-                 'inPress': False,
-                 'page':None,
-                 'doi':None
                  }
     return(article)
 
@@ -86,21 +87,22 @@ def extract_article_info(fields, people, references:list)->dict:
         else:
             refs.append(split_reference(r))
 
-    doi=fields.get('doi',None)
+    doi=fields.get('doi', None)
     if doi:
         doi=cleanCurlyAround(doi.lower())
 
-    return {'Affiliation': fields.get('Affiliation',''),
-            'authors': people.get("author",[]),
-            'year': cleanCurlyAround(fields.get('year',None)),
-            'doi' : doi,
-            'title' : cleanCurlyAround(fields.get("title",None)),
-            'journal' : cleanCurlyAround(fields.get('series', fields.get('journal',None) )),
-            'volume' : cleanCurlyAround(fields.get('volume',None)),
-            'pages' : cleanCurlyAround(fields.get('pages',None)),
-            'references' : refs,
-            'number' : cleanCurlyAround(fields.get('number',None)),
-            'abstract' : abstract }
+    ret={'authors': people.get("author",[])}
+    dict_update_notNone_inplace(ret, 'Affiliation', fields.get('Affiliation',''))
+    dict_update_notNone_inplace(ret, 'year', cleanCurlyAround(fields.get('year', None)))
+    dict_update_notNone_inplace(ret, 'doi', doi)
+    dict_update_notNone_inplace(ret, 'title', cleanCurlyAround(fields.get("title", None)))
+    dict_update_notNone_inplace(ret, 'journal', cleanCurlyAround(fields.get('series', fields.get('journal', None) )))
+    dict_update_notNone_inplace(ret, 'volume', cleanCurlyAround(fields.get('volume', None)))
+    dict_update_notNone_inplace(ret, 'pages', cleanCurlyAround(fields.get('pages', None)))
+    dict_update_notNone_inplace(ret, 'references', refs)
+    dict_update_notNone_inplace(ret, 'number', cleanCurlyAround(fields.get('number', None)))
+    dict_update_notNone_inplace(ret, 'abstract', abstract )
+    return(ret)
 
 def import_bibs(filelist:list) -> list:
     """
@@ -113,6 +115,7 @@ def import_bibs(filelist:list) -> list:
     for filename in tqdm(filelist):
         try:
             #since pybtex removes the \n from this field, we do it ourselves
+            #(but we are not fully replacing pybtex because of the extra consistency checks it has)
             references=parse(filename,keepOnly=[references_field,])
             for k in references:
                 if (references_field not in references[k]):
@@ -130,8 +133,8 @@ def import_bibs(filelist:list) -> list:
                                                 references[bib_id][references_field]))
 
         except:
-            print('Error with the file ' + filename)
+            print('Error with the file ', filename)
             # raise
 
-    print('Imported %s articles.' % thous(len(articles)))
+    print('Imported {0} articles.'.format(thous(len(articles))))
     return(articles)

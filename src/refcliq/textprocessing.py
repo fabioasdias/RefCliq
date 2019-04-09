@@ -64,8 +64,16 @@ def compute_keywords_inplace(G: nx.DiGraph, number_of_words=5, keyword_label:str
         for citing in G.predecessors(n):
             if keyword_label in G.node[citing]['data']: #not all citing articles have abstracts
                 keywords.extend(G.node[citing]['data'][keyword_label])
-        if len(keywords) > number_of_words:
-            keywords=sorted(keywords, key=lambda x:x[1], reverse=True)[:number_of_words]
+        if keywords:
+            merged={}
+            for k,v in keywords:
+                if k not in merged:
+                    merged[k]=v
+                else:
+                    merged[k]+=v
+            keywords=[(k,merged[k]) for k in merged]
+            if len(keywords) > number_of_words:
+                keywords=sorted(keywords, key=lambda x:x[1], reverse=True)[:number_of_words]
         G.node[n]['data'][citing_keywords_label] = keywords
         
     
