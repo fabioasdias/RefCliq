@@ -21,10 +21,10 @@ from optparse import OptionParser
 from src.refcliq.citations import CitationNetwork
 from src.refcliq.preprocess import import_bibs
 from src.refcliq.util import thous
-from src.refcliq.textprocessing import compute_keywords_inplace
 
 import json
 from tqdm import tqdm
+import networkx as nx
     
 if __name__ == '__main__':
     parser = OptionParser()
@@ -50,20 +50,34 @@ if __name__ == '__main__':
     
     citation_network=CitationNetwork(import_bibs(args))    
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
-    compute_keywords_inplace(citation_network)
+    citation_network.compute_keywords()
     co_citation_network=citation_network.cocitation()
     print('Partitioning')
-    partition = best_partition(co_citation_network, weight='count') 
+    partition = best_partition(co_citation_network, weight='count', random_state=7) #stability
     print('Saving results')
     output={}
 
     parts={}
+    cluster_keywords={}
+    cluster_citing_keywords={}
     for n in partition:
         if partition[n] not in parts:
             parts[partition[n]]=[]
         parts[partition[n]].append(n)
 
-    output['partitions']=parts
+    print('Per cluster analysis/data (centrality, keywords)')
+    for p in tqdm(parts):
+        subgraph = co_citation_network.subgraph(parts[p])
+        cluster_keywords[p] = citation_network.subgraph_keywords(parts[p])
+        cluster_citing_keywords[p] = citation_network.subgraph_keywords(parts[p],keyword_label='citing-keywords')
+        k = min([len(subgraph), 100]) #keeping it computationally reasonable - use at most N nodes TODO add as parameter
+        centrality = nx.betweenness_centrality(subgraph, k=k, normalized=True, weight='count')#, seed=7) #seed guarantees stability
+        for n in centrality:
+            citation_network.node[n]['data']['centrality'] = centrality[n]
+
+    output['partitions'] = parts
+    output['cluster_keywords'] = cluster_keywords
+    output['cluster_citing_keywords'] = cluster_citing_keywords
 
     articles={}
     for n in citation_network:
@@ -74,5 +88,5 @@ if __name__ == '__main__':
     
     output['articles']=articles
     with open('out.json','w') as fout:
-        json.dump(output,fout,indent=4, sort_keys=True)
+        json.dump(output, fout, indent=4, sort_keys=True)
 

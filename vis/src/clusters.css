@@ -1,0 +1,16 @@
+.clusters {
+    width: 1000px;
+    height: 800px;
+    overflow-y: scroll;
+    border: solid;
+    border-width: thin;
+}
+.eachCluster {
+    width: 960px;
+    height: fit-content;
+    border: solid;
+    border-width: thin;
+    margin: 3px;
+    padding: 5px;
+    font-size: small;
+}

@@ -94,11 +94,12 @@ class ArticleGeoCoder:
         """
         print('Getting coordinates for each author affiliation')
         for n in tqdm(G):
-            if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None):
-                city,country,names = self._get_coordinates(G.node[n]['data']['Affiliation'])
-                G.node[n]['data']['accurate_coords'] = city
-                G.node[n]['data']['country_coords'] = country
-                G.node[n]['data']['countries'] = names
+            if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
+                city, country, names = self._get_coordinates(G.node[n]['data']['Affiliation'])
+                if city is not None:
+                    G.node[n]['data']['accurate_coords'] = city
+                    G.node[n]['data']['country_coords'] = country
+                    G.node[n]['data']['countries'] = names
         return(G)
 
     def _nominatim(self, address:str)->list:
@@ -179,7 +180,7 @@ class ArticleGeoCoder:
         matches=_addressPattern.finditer(aff)
         addresses=[entry.group('rest') for entry in matches]
         if not addresses:
-            return(None)
+            return(None,None,None)
 
         accurate_coords=[]
         country_coords=[]

@@ -1,8 +1,8 @@
 import React, { Component } from 'react';
 import './App.css';
-import {ClusterOverview} from './clusterOverview';
-import {Clusters} from './clusters';
-import {CitingDetails} from './citing';
+import ClusterOverview from './clusterOverview';
+import Clusters from './clusters';
+import CitingDetails from './citingDetails';
 
 function getData(url,actionThen){
   fetch(url)
@@ -22,18 +22,22 @@ class App extends Component {
     getData('data.json',(json)=> {
       console.log(json);
       this.setState({articles : json.articles, 
-                     clusters : {partitions : json.partitions, clusterKeywords:json.cluster_keywords},
+                     clusters : {nodelist : json.partitions, 
+                                 clusterKeywords:json.cluster_keywords,
+                                 citingKeywords:json.cluster_citing_keywords
+                                },
                     });
     });
   }
   render() {
     return (
       <div className="App">
-        <ClusterOverview/>
+        {/* <ClusterOverview/> */}
         <div className='bottom'>
           <Clusters
             articles={this.state.articles}
             clusters={this.state.clusters}
+            numberKeywords={this.state.nKeywords}
             selectCallback={(d)=>{
               this.setState({selected:d});
             }}

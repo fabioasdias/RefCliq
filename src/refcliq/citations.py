@@ -4,9 +4,17 @@ from tqdm import tqdm
 from itertools import combinations
 from collections import Counter
 from math import floor
+from string import punctuation
+from collections import Counter
+from nltk.corpus import stopwords
+from nltk import WordNetLemmatizer, download
+from math import log
+from nltk.tokenize import word_tokenize
 
 from src.refcliq.geocoding import ArticleGeoCoder
 from src.refcliq.textprocessing import tokens_from_sentence
+
+download('wordnet')
 
 class CitationNetwork(nx.DiGraph):
     def __init__(self, articles:list=None, geocode:bool=True):
@@ -117,7 +125,6 @@ class CitationNetwork(nx.DiGraph):
         if authorIndex not in self._authors:
             self._authors[authorIndex]=[]
         self._authors[authorIndex].append(ID)
-
         
         if ('journal' in article) and (article['journal'] is not None):
             tokens=tokens_from_sentence(article['journal'])
@@ -153,7 +160,6 @@ class CitationNetwork(nx.DiGraph):
         else:#no authors
             self._authorName[0].append(ID)
             self.node[ID]['index']['name']=[0,]
-
         return(ID)
 
     def _find_article_no_doi(self, article:dict):
@@ -163,7 +169,6 @@ class CitationNetwork(nx.DiGraph):
         fields=[k for k in article if (article[k])]        
 
         possibles_year=self._year['None'][:]
-        
         if ('year' in fields) and (article['year'] in self._year):
             possibles_year.extend(self._year[article['year']][:])
         if not possibles_year:
@@ -175,16 +180,12 @@ class CitationNetwork(nx.DiGraph):
         if (nAuthors!=1) and (nAuthors in self._authors):
             possibles_authors.extend(self._authors[nAuthors][:])
         if not possibles_authors:
-            return(None)
-        
+            return(None)        
         possibles_authors=set(possibles_authors)
-
 
         possibles=possibles_authors.intersection(possibles_year)
         if not possibles:
             return(None)
-
-        
 
         if ('journal' in fields):
             possibles_journal=[]
@@ -232,13 +233,10 @@ class CitationNetwork(nx.DiGraph):
                 if not possibles:
                     return(None)
 
-
         for n in possibles: 
             if same_article(self.node[n]['data'],article):
                 return(n)
-
         return(None)
-
 
     def find(self, article: dict):
         """
@@ -274,7 +272,8 @@ class CitationNetwork(nx.DiGraph):
         """
         G=nx.Graph()
         print('Building co-citation')
-        for citing in tqdm(self):
+        useful_nodes=[n for n in self if list(self.successors(n))]
+        for citing in tqdm(useful_nodes):
             cited=list(self.successors(citing))
             for w1,w2 in combinations(cited,2):
                 G.add_edge(w1,w2)
@@ -289,6 +288,71 @@ class CitationNetwork(nx.DiGraph):
                 G.node[n]['data']={**self.node[n]['data']}
 
         return(G)
+
+    def subgraph_keywords(self, nbunch:list, keyword_label:str='keywords', number_of_words:int=20)->list:
+        """
+            Computes the top 'number_of_words' keywords considering only the publications in nbunch
+        """
+        keywords=[]
+        for n in nbunch:
+            if keyword_label in self.node[n]['data']:
+                keywords.extend(self.node[n]['data'][keyword_label])
+        return(_merge_keywords(keywords))
+
+    def compute_keywords(self, number_of_words=20, keyword_label:str='keywords', citing_keywords_label:str='citing-keywords'):
+        """
+        For each article that has an abstract, compute the corresponding keywords
+        and add them to the 'data' dictionary, under "keyword_label".
+        The whole dataset is necessary to compute the idf part of tf-idf.
+        """
+        corpus={}
+        tfs={}
+        stop_words = stopwords.words('english')
+        lemmatizer=WordNetLemmatizer()
+        remove_punct = str.maketrans('', '', punctuation)
+        idfs={}
+        useful_nodes=[n for n in self if ('data' in self.node[n]) and ('abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
+        print('Computing tf-idf')
+        for n in tqdm(useful_nodes):
+            lemmas=[lemmatizer.lemmatize(word.translate(remove_punct),pos='s').lower() for word in word_tokenize(self.node[n]['data']['abstract'])]
+            corpus[n]=[word for word in lemmas if (word not in stop_words) and (word!='')]
+            count=Counter(corpus[n])
+            most=count.most_common(1)[0]
+            tfs[n]={word:(count[word]/most[1]) for word in count}
+            for word in count:
+                idfs[word]=idfs.get(word,0)+1
+        idfs={word:log(len(corpus)/(1+idfs[word])) for word in idfs}
+
+        print('Keywords')
+        for n in tqdm(tfs):
+            self.node[n]['data'][keyword_label]=sorted([(w,tfs[n][w]*idfs[w]) for w in tfs[n]],key=lambda x:x[1],reverse=True)[:number_of_words]
+
+        print('Citing keywords')
+        for n in tqdm(self):
+            keywords = []
+            for citing in self.predecessors(n):
+                if keyword_label in self.node[citing]['data']: #not all citing articles have abstracts
+                    keywords.extend(self.node[citing]['data'][keyword_label])
+            if keywords:
+                keywords=_merge_keywords(keywords)
+                if len(keywords) > number_of_words:
+                    keywords=sorted(keywords, key=lambda x:x[1], reverse=True)[:number_of_words]
+            self.node[n]['data'][citing_keywords_label] = keywords
+
+
+
+def _merge_keywords(keywords:list)->list:
+    """
+        Removes duplicate keywords from a list, updating the tf-idf (summing the
+        occurences).
+    """
+    merged={}
+    for k,v in keywords:
+        if k not in merged:
+            merged[k]=v
+        else:
+            merged[k]+=v
+    return([(k,merged[k]) for k in merged])
 
 
 def same_article(a1:dict, a2:dict)->bool:

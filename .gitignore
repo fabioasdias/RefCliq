@@ -39,3 +39,5 @@ nosetests.xml
 ENV
 nlp
 out
+vis/public/data.json
+.pytest_cache
