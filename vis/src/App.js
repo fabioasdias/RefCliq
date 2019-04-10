@@ -22,10 +22,7 @@ class App extends Component {
     getData('data.json',(json)=> {
       console.log(json);
       this.setState({articles : json.articles, 
-                     clusters : {nodelist : json.partitions, 
-                                 clusterKeywords:json.cluster_keywords,
-                                 citingKeywords:json.cluster_citing_keywords
-                                },
+                     clusters : json.partitions
                     });
     });
   }

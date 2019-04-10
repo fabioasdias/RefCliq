@@ -58,8 +58,6 @@ if __name__ == '__main__':
     output={}
 
     parts={}
-    cluster_keywords={}
-    cluster_citing_keywords={}
     for n in partition:
         if partition[n] not in parts:
             parts[partition[n]]=[]
@@ -68,16 +66,13 @@ if __name__ == '__main__':
     print('Per cluster analysis/data (centrality, keywords)')
     for p in tqdm(parts):
         subgraph = co_citation_network.subgraph(parts[p])
-        cluster_keywords[p] = citation_network.subgraph_keywords(parts[p])
-        cluster_citing_keywords[p] = citation_network.subgraph_keywords(parts[p],keyword_label='citing-keywords')
         k = min([len(subgraph), 100]) #keeping it computationally reasonable - use at most N nodes TODO add as parameter
-        centrality = nx.betweenness_centrality(subgraph, k=k, normalized=True, weight='count')#, seed=7) #seed guarantees stability
+        # centrality = nx.betweenness_centrality(subgraph, k=k, normalized=True, weight='count')#, seed=7) #seed guarantees stability
+        centrality = nx.pagerank(subgraph)
         for n in centrality:
             citation_network.node[n]['data']['centrality'] = centrality[n]
 
     output['partitions'] = parts
-    output['cluster_keywords'] = cluster_keywords
-    output['cluster_citing_keywords'] = cluster_citing_keywords
 
     articles={}
     for n in citation_network:
@@ -90,3 +85,4 @@ if __name__ == '__main__':
     with open('out.json','w') as fout:
         json.dump(output, fout, indent=4, sort_keys=True)
 
+#McMillan, D (1986) J Community Psychol, V14, P6, Doi 10.1002/1520-6629(198601)14:1<6::aid-Jcop2290140103>3.0.co;2-I.

@@ -6,7 +6,7 @@ from titlecase import titlecase
 from src.refcliq.bibtex import parse
 from src.refcliq.util import thous, cleanCurlyAround
 
-_citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V[\d]+))?(, (?P<page>P[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/:A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
+_citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V?[A-Za-z]*[\d]+))?(, (?P<page>P?[A-Za-z]*[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/<>:#\\A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')
 
 def _properName(name:str)->str:

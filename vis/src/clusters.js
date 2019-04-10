@@ -4,23 +4,40 @@ class Clusters extends Component {
     constructor(props){
         super(props);
         this.state={extended:{},
-                    threshold:0}
+                    threshold:1,
+                    maxCount:1}
     }
-    render() {
-        let {articles,clusters,selectCallBack,numberKeywords}=this.props;
-        let retJSX=[];
-        let maxCount=undefined;
+    componentWillReceiveProps(props){
+        let {articles,clusters}=props;
         if ((articles!==undefined) || (clusters!==undefined)){
-            maxCount=0;
+            let maxCount=0;
             for (let a in articles){
                 // console.log(a,articles[a].cites_this.length);
                 maxCount=Math.max(maxCount, articles[a].cites_this.length);
             }
-            // this.setState({maxCount:maxCount});
+            if (maxCount!==this.state.maxCount){
+                this.setState({maxCount:maxCount});
+            }
+        }
 
+    }
 
-            for (let clusterID in clusters.nodelist){
-                let keywords=(clusters.clusterKeywords[clusterID]).slice(0,numberKeywords);
+    render() {
+        let {articles,clusters,selectCallBack,numberKeywords}=this.props;
+        let retJSX=[];
+        if ((articles!==undefined) || (clusters!==undefined)){
+            for (let clusterID in clusters){
+                //filter the works before doing anything else
+                let nodes=clusters[clusterID].filter((d)=>{
+                    return(articles[d].cites_this.length>=this.state.threshold);
+                }).sort((a,b)=>{
+                    return(parseFloat(articles[b].centrality)-parseFloat(articles[a].centrality));
+                });
+                if (nodes.length===0){
+                    continue
+                }
+
+                let keywords=[]//TODO (clusters.clusterKeywords[clusterID]).slice(0,numberKeywords);
                 let kJSX=[];
                 if (keywords.length>0){
                     kJSX.push(<p><b>Content keywords:</b> {keywords.map((k)=>{
@@ -29,20 +46,12 @@ class Clusters extends Component {
                 }
 
                 let cJSX=[];
-                let citingKeywords=(clusters.citingKeywords[clusterID]).slice(0,numberKeywords);
+                let citingKeywords=[]//TODO(clusters.citingKeywords[clusterID]).slice(0,numberKeywords);
                                 
                 if (citingKeywords.length>0){
                     cJSX.push(<p><b>Keywords of citing papers:</b> {citingKeywords.map((k)=>{
                         return(k[0]+', ');
                     })}</p>);
-                }
-                let nodes=clusters.nodelist[clusterID].filter((d)=>{
-                    return(articles[d].cites_this.length>this.state.threshold);
-                }).sort((a,b)=>{
-                    return(parseFloat(articles[b].centrality)-parseFloat(articles[a].centrality));
-                });
-                if (nodes.length===0){
-                    continue
                 }
 
                 let works=[];
@@ -127,19 +136,19 @@ class Clusters extends Component {
         }
       return (
         <div className="clusters">
-            {(maxCount!==undefined)?
+            {(this.state.maxCount!==undefined)?
                 <div style={{margin:'auto', padding:'5px', display:'flex', width:'fit-content'}}>
                     <p style={{marginRight:'20px'}}>Minimum number of citations: {this.state.threshold} </p>
-                    <p style={{marginRight:'20px'}}>0</p><input 
+                    <p style={{marginRight:'20px'}}>1</p><input 
                         type="range" 
                         className="slider" 
                         min={1} 
-                        max={maxCount} 
+                        max={this.state.maxCount} 
                         defaultValue={this.state.threshold} 
                         onChange={(e)=>{
                             this.setState({threshold:parseInt(e.target.value)});
                         }}
-                    /><p>{maxCount}</p>
+                    /><p>{this.state.maxCount}</p>
                 </div>
                 :null}
             {retJSX}

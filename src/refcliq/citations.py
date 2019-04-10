@@ -7,7 +7,7 @@ from math import floor
 from string import punctuation
 from collections import Counter
 from nltk.corpus import stopwords
-from nltk import WordNetLemmatizer, download
+from nltk import WordNetLemmatizer, download, bigrams
 from math import log
 from nltk.tokenize import word_tokenize
 
@@ -289,15 +289,19 @@ class CitationNetwork(nx.DiGraph):
 
         return(G)
 
-    def subgraph_keywords(self, nbunch:list, keyword_label:str='keywords', number_of_words:int=20)->list:
-        """
-            Computes the top 'number_of_words' keywords considering only the publications in nbunch
-        """
-        keywords=[]
-        for n in nbunch:
-            if keyword_label in self.node[n]['data']:
-                keywords.extend(self.node[n]['data'][keyword_label])
-        return(_merge_keywords(keywords))
+    # this needs to be done in the interface, otherwise it loses consistency with the count threshold
+
+    # def subgraph_keywords(self, nbunch:list, keyword_label:str='keywords', number_of_words:int=20)->list:
+    #     """
+    #         Computes the top 'number_of_words' keywords considering only the publications in nbunch
+    #     """
+    #     keywords=[]
+    #     used=0
+    #     for n in nbunch:
+    #         if keyword_label in self.node[n]['data']:
+    #             used+=1
+    #             keywords.extend(self.node[n]['data'][keyword_label])
+    #     return(_merge_keywords(keywords, used))
 
     def compute_keywords(self, number_of_words=20, keyword_label:str='keywords', citing_keywords_label:str='citing-keywords'):
         """
@@ -312,10 +316,11 @@ class CitationNetwork(nx.DiGraph):
         remove_punct = str.maketrans('', '', punctuation)
         idfs={}
         useful_nodes=[n for n in self if ('data' in self.node[n]) and ('abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
-        print('Computing tf-idf')
+        print('Computing tf')
         for n in tqdm(useful_nodes):
             lemmas=[lemmatizer.lemmatize(word.translate(remove_punct),pos='s').lower() for word in word_tokenize(self.node[n]['data']['abstract'])]
             corpus[n]=[word for word in lemmas if (word not in stop_words) and (word!='')]
+            corpus[n]=bigrams(corpus[n])
             count=Counter(corpus[n])
             most=count.most_common(1)[0]
             tfs[n]={word:(count[word]/most[1]) for word in count}
@@ -324,27 +329,29 @@ class CitationNetwork(nx.DiGraph):
         idfs={word:log(len(corpus)/(1+idfs[word])) for word in idfs}
 
         print('Keywords')
-        for n in tqdm(tfs):
-            self.node[n]['data'][keyword_label]=sorted([(w,tfs[n][w]*idfs[w]) for w in tfs[n]],key=lambda x:x[1],reverse=True)[:number_of_words]
+        for n in tqdm(tfs):#*idfs[w]
+            self.node[n]['data'][keyword_label]=sorted([(w,tfs[n][w]) for w in tfs[n]],key=lambda x:x[1],reverse=True)[:number_of_words]
 
         print('Citing keywords')
         for n in tqdm(self):
             keywords = []
+            used_documents=0
             for citing in self.predecessors(n):
                 if keyword_label in self.node[citing]['data']: #not all citing articles have abstracts
+                    used_documents+=1
                     keywords.extend(self.node[citing]['data'][keyword_label])
             if keywords:
-                keywords=_merge_keywords(keywords)
+                keywords=_merge_keywords(keywords, used_documents)
                 if len(keywords) > number_of_words:
                     keywords=sorted(keywords, key=lambda x:x[1], reverse=True)[:number_of_words]
             self.node[n]['data'][citing_keywords_label] = keywords
 
 
 
-def _merge_keywords(keywords:list)->list:
+def _merge_keywords(keywords:list, how_many_works:int)->list:
     """
         Removes duplicate keywords from a list, updating the tf-idf (summing the
-        occurences).
+        occurences). How_many_works is used to re-normalize the values.
     """
     merged={}
     for k,v in keywords:
@@ -352,7 +359,7 @@ def _merge_keywords(keywords:list)->list:
             merged[k]=v
         else:
             merged[k]+=v
-    return([(k,merged[k]) for k in merged])
+    return([(k,merged[k]/how_many_works) for k in merged])
 
 
 def same_article(a1:dict, a2:dict)->bool:
