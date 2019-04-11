@@ -5,9 +5,6 @@ function combineKeywords(articles, nodelist, field, numberKeywords){
     if (nodelist.length===0){
         return([]);
     }
-    if (nodelist.length===1){
-        return(articles[nodelist[0]][field]);
-    }
     let res_dict={};
     let res=[];
     let useful=0;
@@ -104,7 +101,7 @@ class Clusters extends Component {
                 let citingKeywords=combineKeywords(articles, nodes, 'citing-keywords', numberKeywords);
                                 
                 if (citingKeywords.length>0){
-                    cJSX.push(<p><b>Keywords of citing papers:</b> {prepKeywords(keywords)}</p>);
+                    cJSX.push(<p><b>Keywords of citing papers:</b> {prepKeywords(citingKeywords)}</p>);
                 }
 
                 let works=[];
