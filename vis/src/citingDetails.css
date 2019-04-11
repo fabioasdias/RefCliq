@@ -1,0 +1,10 @@
+.citing {
+    width: 800px;
+    height: fit-content;
+    border: solid;
+    border-width: thin;
+}
+.abstract {
+    width: 650px;
+    margin: auto;
+}

@@ -23,8 +23,13 @@ class Clusters extends Component {
     }
 
     render() {
-        let {articles,clusters,selectCallBack,numberKeywords}=this.props;
+        let {articles,clusters,numberKeywords}=this.props;
         let retJSX=[];
+        let prepKeywords=(keywords)=>{
+            return(keywords.slice(0,numberKeywords).map((k, numberKeywords)=>{
+                return(k[0][0]+' '+k[0][1]+', ');
+            }));
+        }
         if ((articles!==undefined) || (clusters!==undefined)){
             for (let clusterID in clusters){
                 //filter the works before doing anything else
@@ -40,21 +45,23 @@ class Clusters extends Component {
                 let keywords=[]//TODO (clusters.clusterKeywords[clusterID]).slice(0,numberKeywords);
                 let kJSX=[];
                 if (keywords.length>0){
-                    kJSX.push(<p><b>Content keywords:</b> {keywords.map((k)=>{
-                                    return(k[0]+', ');
-                                })}</p>);
+                    kJSX.push(<p><b>Content keywords:</b> {prepKeywords(keywords)}</p>);
                 }
 
                 let cJSX=[];
                 let citingKeywords=[]//TODO(clusters.citingKeywords[clusterID]).slice(0,numberKeywords);
                                 
                 if (citingKeywords.length>0){
-                    cJSX.push(<p><b>Keywords of citing papers:</b> {citingKeywords.map((k)=>{
-                        return(k[0]+', ');
-                    })}</p>);
+                    cJSX.push(<p><b>Keywords of citing papers:</b> {prepKeywords(keywords)}</p>);
                 }
 
                 let works=[];
+                let wrapCallBack=(e)=>{                    
+                    let nodeID=e.target.getAttribute('data-node');
+                    if (this.props.selectCallback !== undefined){
+                        this.props.selectCallback(nodeID);
+                    }
+                }
                 if ( (this.state.extended.hasOwnProperty(clusterID))&&(this.state.extended[clusterID]))
                 {
                     for (let i=0;i<nodes.length;i++){
@@ -73,16 +80,20 @@ class Clusters extends Component {
                             reference = reference+' '+thisArticle.journal+'.';
                         }
 
-                        works.push(<tr><td>{reference}</td>
+                        works.push(<tr><td><p
+                                                data-node={nodes[i]}
+                                                onClick={wrapCallBack}
+                                            >
+                                            {reference}
+                                            </p>
+                                        </td>
                                     <td align="center">{Math.round(thisArticle.centrality*100)/100}</td>
                                     <td align="center">{thisArticle.cites_this.length}</td> 
                                     <td>{(thisArticle.keywords!==undefined)?
-                                        thisArticle.keywords.slice(0,numberKeywords).map((k)=>{
-                                            return(k[0]+', ');
-                                        }):null}</td>
-                                    <td>{(thisArticle['citing-keywords']!==undefined)?thisArticle['citing-keywords'].slice(0,numberKeywords).map((k)=>{
-                                            return(k[0]+', ');
-                                        }):null}</td></tr>
+                                        prepKeywords(thisArticle.keywords, numberKeywords):null}</td>
+                                    <td>{(thisArticle['citing-keywords']!==undefined)?
+                                        prepKeywords(thisArticle['citing-keywords'], numberKeywords):null}
+                                    </td></tr>
                         );
                     }
                 }

@@ -1,6 +1,6 @@
 .clusters {
     width: 1000px;
-    height: 800px;
+    height: fit-content;
     overflow-y: scroll;
     border: solid;
     border-width: thin;
