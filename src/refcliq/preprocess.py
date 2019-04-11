@@ -6,7 +6,8 @@ from titlecase import titlecase
 from src.refcliq.bibtex import parse
 from src.refcliq.util import thous, cleanCurlyAround
 
-_citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V?[A-Za-z]*[\d]+))?(, (?P<page>P?[A-Za-z]*[\d]+))?(, [DOI ^,]+(?P<doi>10.\d{4,9}/[-._;()/<>:#\\A-Z0-9]+))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
+# _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V(, )?[^,]+))?(, (?P<page>P(, )?[^,]+))?(, [DOI ^,]+(?P<doi>10.( )*\d{4,9}/[ ,._;()/<>:#\\A-Z0-9\-\+]*))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
+_citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)?(, )?(?P<year>\d{4})?(, (?P<journal>.*?))(, (?P<vol>V[, ]*[^,]+))?(, (?P<page>P[, ]*[^,]+))?(, [DOIRG/ ^,]+(?P<doi>.*))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _listPattern=re.compile(r'\{\[\}(.*?)(,.*?)+\]')
 
 def _properName(name:str)->str:
@@ -50,7 +51,7 @@ def split_reference(reference:str)->dict:
     #removes the non-list {[} ]
     ref=re.sub(r"\{\[\}([^,\]]*?)\]",r"\1",ref)
     #replaces inner lists {[} X, Y] with X
-    ref=_listPattern.sub(r'\1',ref) 
+    ref=_listPattern.sub(r'\2',ref)  #the first part is usually the same but in chinese/etc
     
     match=_citePattern.search(ref)
     

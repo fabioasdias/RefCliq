@@ -25,7 +25,8 @@ from src.refcliq.util import thous
 import json
 from tqdm import tqdm
 import networkx as nx
-    
+from networkx.readwrite import json_graph
+
 if __name__ == '__main__':
     parser = OptionParser()
     # parser.add_option("-n", "--node_minimum",
@@ -48,10 +49,14 @@ if __name__ == '__main__':
         exit(-1)
 
     
-    citation_network=CitationNetwork(import_bibs(args))    
+    citation_network=CitationNetwork(import_bibs(args),geocode=True)    
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
     citation_network.compute_keywords()
     co_citation_network=citation_network.cocitation()
+
+    #The distance between the nodes is the reverse of their count
+    # for e in co_citation_network.edges():
+    #     co_citation_network[e[0]][e[1]]['distance']=1/co_citation_network[e[0]][e[1]]['count']
     print('Partitioning')
     partition = best_partition(co_citation_network, weight='count', random_state=7) #stability
     print('Saving results')
@@ -63,26 +68,34 @@ if __name__ == '__main__':
             parts[partition[n]]=[]
         parts[partition[n]].append(n)
 
+    graphs={}
+
     print('Per cluster analysis/data (centrality, keywords)')
     for p in tqdm(parts):
         subgraph = co_citation_network.subgraph(parts[p])
-        k = min([len(subgraph), 100]) #keeping it computationally reasonable - use at most N nodes TODO add as parameter
+        # k = min([len(subgraph), 100]) #keeping it computationally reasonable - use at most N nodes TODO add as parameter
         # centrality = nx.betweenness_centrality(subgraph, k=k, normalized=True, weight='count')#, seed=7) #seed guarantees stability
-        centrality = nx.pagerank(subgraph)
+        # centrality = nx.pagerank(subgraph)
+        # centrality = nx.closeness_centrality(subgraph,distance='distance')
+        centrality = nx.degree_centrality(subgraph)
+        topo = nx.Graph()
+        topo.add_nodes_from(subgraph)
+        topo.add_weighted_edges_from(subgraph.edges(data='count'))
+        graphs[p] = json_graph.node_link_data(topo)
+        
         for n in centrality:
             citation_network.node[n]['data']['centrality'] = centrality[n]
 
     output['partitions'] = parts
+    output['graphs'] = graphs
 
     articles={}
     for n in citation_network:
         articles[n] = citation_network.node[n]['data']
         articles[n]['cites_this']=[p for p in citation_network.predecessors(n)]
         articles[n]['references']=[p for p in citation_network.successors(n)]
-        articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]
-    
+        articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
     output['articles']=articles
+
     with open('out.json','w') as fout:
         json.dump(output, fout, indent=4, sort_keys=True)
-
-#McMillan, D (1986) J Community Psychol, V14, P6, Doi 10.1002/1520-6629(198601)14:1<6::aid-Jcop2290140103>3.0.co;2-I.

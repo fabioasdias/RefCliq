@@ -316,7 +316,7 @@ class CitationNetwork(nx.DiGraph):
         remove_punct = str.maketrans('', '', punctuation)
         idfs={}
         useful_nodes=[n for n in self if ('data' in self.node[n]) and ('abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
-        print('Computing tf')
+        print('Computing tf-idf')
         for n in tqdm(useful_nodes):
             lemmas=[lemmatizer.lemmatize(word.translate(remove_punct),pos='s').lower() for word in word_tokenize(self.node[n]['data']['abstract'])]
             corpus[n]=[word for word in lemmas if (word not in stop_words) and (word!='')]
