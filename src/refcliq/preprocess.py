@@ -54,14 +54,17 @@ def split_reference(reference:str)->dict:
     ref=_listPattern.sub(r'\2',ref)  #the first part is usually the same but in chinese/etc
     
     match=_citePattern.search(ref)
-    
     if match:
+        doi = match.group('doi')
+        if doi:#removes whitespaces in the DOI, yes, we have them
+            doi=doi.translate(str.maketrans('','',' '))
+
         article={'authors' : [Person(string=_properName(match.group('author'))),]}
         dict_update_notNone_inplace(article, 'year', match.group('year'))
         dict_update_notNone_inplace(article, 'journal',titlecase(match.group('journal')))
         dict_update_notNone_inplace(article, 'vol', match.group('vol'))
         dict_update_notNone_inplace(article, 'page', match.group('page'))
-        dict_update_notNone_inplace(article, 'doi', match.group('doi'))
+        dict_update_notNone_inplace(article, 'doi', doi)
     # we know this is a reference. It might be only the name of the publication
     else:
         article={'authors':[],
@@ -91,13 +94,17 @@ def extract_article_info(fields, people, references:list)->dict:
     doi=fields.get('doi', None)
     if doi:
         doi=cleanCurlyAround(doi.lower())
-
+        
+    affiliation = fields.get('Affiliation',None)
+    if affiliation:
+        affiliation=cleanCurlyAround(affiliation).replace(r'\&','&')
+    
     ret={'authors': people.get("author",[])}
-    dict_update_notNone_inplace(ret, 'Affiliation', fields.get('Affiliation',''))
+    dict_update_notNone_inplace(ret, 'Affiliation', affiliation)
     dict_update_notNone_inplace(ret, 'year', cleanCurlyAround(fields.get('year', None)))
     dict_update_notNone_inplace(ret, 'doi', doi)
-    dict_update_notNone_inplace(ret, 'title', cleanCurlyAround(fields.get("title", None)))
-    dict_update_notNone_inplace(ret, 'journal', cleanCurlyAround(fields.get('series', fields.get('journal', None) )))
+    dict_update_notNone_inplace(ret, 'title', titlecase(cleanCurlyAround(fields.get("title", None))))
+    dict_update_notNone_inplace(ret, 'journal', titlecase(cleanCurlyAround(fields.get('series', fields.get('journal', None) ))))
     dict_update_notNone_inplace(ret, 'volume', cleanCurlyAround(fields.get('volume', None)))
     dict_update_notNone_inplace(ret, 'pages', cleanCurlyAround(fields.get('pages', None)))
     dict_update_notNone_inplace(ret, 'references', refs)
@@ -135,7 +142,7 @@ def import_bibs(filelist:list) -> list:
 
         except:
             print('Error with the file ', filename)
-            # raise
+            raise
 
     print('Imported {0} articles.'.format(thous(len(articles))))
     return(articles)

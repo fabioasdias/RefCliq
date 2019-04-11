@@ -3,8 +3,19 @@
     height: fit-content;
     border: solid;
     border-width: thin;
+    display: block;
 }
 .abstract {
     width: 650px;
     margin: auto;
+}
+.map{
+    width: 790px;
+    height: 400px;
+    display: block;
+}
+.citationlist {
+    width: 100%;
+    height: 500px;
+    overflow-y: scroll;
 }

@@ -10,11 +10,98 @@ from nltk.corpus import stopwords
 from nltk import WordNetLemmatizer, download, bigrams
 from math import log
 from nltk.tokenize import word_tokenize
+from nltk.stem import snowball
 
 from src.refcliq.geocoding import ArticleGeoCoder
 from src.refcliq.textprocessing import tokens_from_sentence
 
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from scipy.sparse import coo_matrix
+
 download('wordnet')
+
+#https://medium.com/analytics-vidhya/automated-keyword-extraction-from-articles-using-nlp-bfd864f41b34
+def sort_coo(coo_matrix):
+    tuples = zip(coo_matrix.col, coo_matrix.data)
+    return sorted(tuples, key=lambda x: (x[1], x[0]), reverse=True)
+ 
+def extract_topn_from_vector(feature_names, sorted_items, topn=10):
+    """get the feature names and tf-idf score of top n items"""
+
+    score_vals = []
+    feature_vals = []
+    
+    # word index and corresponding tf-idf score
+    for idx, score in sorted_items:
+        #do not add keywords that are contained in other keywords: sao paulo, sao, paulo. Might screw up if sao gets in before...
+        skip=False
+        for keywords in feature_vals:
+            for already in keywords.split():
+                for toAdd in feature_names[idx].split():
+                    if toAdd in already:
+                        skip=True
+        if not skip:
+            #keep track of feature name and its corresponding score
+            score_vals.append(round(score, 6))
+            feature_vals.append(feature_names[idx])
+            if len(score_vals)==topn:
+                break
+ 
+    #create a tuples of feature,score
+    results = zip(feature_vals,score_vals)
+    
+    return(list(results))
+
+def _merge_keywords(keywords:list, how_many_works:int)->list:
+    """
+        Removes duplicate keywords from a list, updating the tf-idf (summing the
+        occurences). How_many_works is used to re-normalize the values.
+    """
+    merged={}
+    for k,v in keywords:
+        if k not in merged:
+            merged[k]=v
+        else:
+            merged[k]+=v
+    return([(k,merged[k]/how_many_works) for k in merged])
+
+
+
+
+def same_article(a1:dict, a2:dict)->bool:
+    """
+    Tests if two articles are the same based on their info. 
+
+    Uses fuzzy string matching and the Person structure from pybtex.
+    """
+
+    usefulFields=list(set([k for k in a1 if a1[k]]).intersection(set([k for k in a2 if a2[k]])))
+
+    if 'year' in usefulFields:
+        if (a1['year']!=a2['year']):
+            return(False)
+
+    # two articles can have the same doi! 
+    # if 'doi' in usefulFields:
+    #     if (a1['doi']!=a2['doi']):
+    #         return(False)
+
+
+    #article from references only have one author that we know of
+    L1=len(a1['authors'])
+    L2=len(a2['authors'])
+    if (L1!=1) and (L2!=1) and (L1!=L2):
+        return(False)
+    
+    for i in range(min([L1,L2])):
+        if (ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80) and (ratio(' '.join(a1['authors'][i].last_names),' '.join(a2['authors'][i].last_names))<=80):
+            return(False)
+
+    for field in ['title', 'journal', 'page', 'vol']:
+        if (field in usefulFields) and (ratio(a1[field],a2[field])<=80):
+            return(False)
+
+    return(True)
 
 class CitationNetwork(nx.DiGraph):
     def __init__(self, articles:list=None, geocode:bool=True):
@@ -289,48 +376,52 @@ class CitationNetwork(nx.DiGraph):
 
         return(G)
 
-    # this needs to be done in the interface, otherwise it loses consistency with the count threshold
-
-    # def subgraph_keywords(self, nbunch:list, keyword_label:str='keywords', number_of_words:int=20)->list:
-    #     """
-    #         Computes the top 'number_of_words' keywords considering only the publications in nbunch
-    #     """
-    #     keywords=[]
-    #     used=0
-    #     for n in nbunch:
-    #         if keyword_label in self.node[n]['data']:
-    #             used+=1
-    #             keywords.extend(self.node[n]['data'][keyword_label])
-    #     return(_merge_keywords(keywords, used))
-
     def compute_keywords(self, number_of_words=20, keyword_label:str='keywords', citing_keywords_label:str='citing-keywords'):
         """
         For each article that has an abstract, compute the corresponding keywords
         and add them to the 'data' dictionary, under "keyword_label".
         The whole dataset is necessary to compute the idf part of tf-idf.
         """
-        corpus={}
-        tfs={}
-        stop_words = stopwords.words('english')
+        corpus=[]
+        stop_words = list(set(stopwords.words('english')+['do', 'and', 'among', 'findings', 'is', 'in', 'results', 'an', 'as', 'are', 'only', 'number',
+            'have', 'using', 'research', 'find', 'from', 'for', 'to', 'with', 'than', 'since', 'most',
+            'also', 'which', 'between', 'has', 'more', 'be', 'we', 'that', 'but', 'it', 'how',
+            'they', 'not', 'article', 'on', 'data', 'by', 'a', 'both', 'this', 'of', 'studies', 'lens', 'analysis',
+            'their', 'these', 'social', 'the', 'or', 'may', 'whether', 'them'', only',
+            'implication', 'our', 'less', 'who', 'all', 'based', 'less', 'was',
+            'its', 'new', 'one', 'use', 'these', 'focus', 'result', 'test', 'property', 'properties',
+            'finding', 'relationship', 'different', 'their', 'more', 'between',
+            'article', 'study', 'paper', 'research', 'sample', 'effect', 'case', 'argue', 'three',
+            'affect', 'extent', 'when', 'implications', 'been', 'data', 'even', 'examine', 'toward',
+            'effects', 'analysis', 'into', 'support', 'show', 'within', 'what', 'were', 'per',
+            'associated', 'suggest', 'those', 'over', 'however', 'while', 'indicate', 'about',
+            'terms', 'processes', 'tactics', 'strategies', 'de',
+            'such', 'other', 'because', 'can', 'both', 'n', 'find', 'using', 'have', 'not',
+            'some', 'likely', 'findings', 'but', 'results', 'among', 'has', 'how', 'which',
+            'they', 'be', 'i', 'two', 'than', 'how', 'which', 'be', 'across', 'also', 'it', 'through', 'at']))
         lemmatizer=WordNetLemmatizer()
         remove_punct = str.maketrans('', '', punctuation)
-        idfs={}
         useful_nodes=[n for n in self if ('data' in self.node[n]) and ('abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
-        print('Computing tf-idf')
-        for n in tqdm(useful_nodes):
-            lemmas=[lemmatizer.lemmatize(word.translate(remove_punct),pos='s').lower() for word in word_tokenize(self.node[n]['data']['abstract'])]
-            corpus[n]=[word for word in lemmas if (word not in stop_words) and (word!='')]
-            corpus[n]=bigrams(corpus[n])
-            count=Counter(corpus[n])
-            most=count.most_common(1)[0]
-            tfs[n]={word:(count[word]/most[1]) for word in count}
-            for word in count:
-                idfs[word]=idfs.get(word,0)+1
-        idfs={word:log(len(corpus)/(1+idfs[word])) for word in idfs}
 
-        print('Keywords')
-        for n in tqdm(tfs):#*idfs[w]
-            self.node[n]['data'][keyword_label]=sorted([(w,tfs[n][w]) for w in tfs[n]],key=lambda x:x[1],reverse=True)[:number_of_words]
+        for n in useful_nodes:
+            lemmas=[lemmatizer.lemmatize(word.translate(remove_punct),pos='s').lower() for word in word_tokenize(self.node[n]['data']['abstract'])]
+            corpus.append(" ".join([word for word in lemmas if (word not in stop_words) and (word!='')]))
+
+        cv=CountVectorizer(max_df=0.85, stop_words=stop_words, max_features=10000, ngram_range=(1,3))
+        X=cv.fit_transform(corpus)
+        tfidf_transformer=TfidfTransformer(smooth_idf=True,use_idf=True)
+        tfidf_transformer.fit(X)
+        # get feature names
+        feature_names=cv.get_feature_names()
+
+
+        for i,doc in enumerate(corpus):
+            #generate tf-idf for the given document
+            tf_idf_vector=tfidf_transformer.transform(cv.transform([doc]))
+            #sort the tf-idf vectors by descending order of scores
+            sorted_items=sort_coo(tf_idf_vector.tocoo())
+            #extract only the top n
+            self.node[useful_nodes[i]]['data'][keyword_label]=extract_topn_from_vector(feature_names, sorted_items, number_of_words)
 
         print('Citing keywords')
         for n in tqdm(self):
@@ -348,51 +439,3 @@ class CitationNetwork(nx.DiGraph):
 
 
 
-def _merge_keywords(keywords:list, how_many_works:int)->list:
-    """
-        Removes duplicate keywords from a list, updating the tf-idf (summing the
-        occurences). How_many_works is used to re-normalize the values.
-    """
-    merged={}
-    for k,v in keywords:
-        if k not in merged:
-            merged[k]=v
-        else:
-            merged[k]+=v
-    return([(k,merged[k]/how_many_works) for k in merged])
-
-
-def same_article(a1:dict, a2:dict)->bool:
-    """
-    Tests if two articles are the same based on their info. 
-
-    Uses fuzzy string matching and the Person structure from pybtex.
-    """
-
-    usefulFields=list(set([k for k in a1 if a1[k]]).intersection(set([k for k in a2 if a2[k]])))
-
-    if 'year' in usefulFields:
-        if (a1['year']!=a2['year']):
-            return(False)
-
-    # two articles can have the same doi! 
-    # if 'doi' in usefulFields:
-    #     if (a1['doi']!=a2['doi']):
-    #         return(False)
-
-
-    #article from references only have one author that we know of
-    L1=len(a1['authors'])
-    L2=len(a2['authors'])
-    if (L1!=1) and (L2!=1) and (L1!=L2):
-        return(False)
-    
-    for i in range(min([L1,L2])):
-        if (ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80) and (ratio(' '.join(a1['authors'][i].last_names),' '.join(a2['authors'][i].last_names))<=80):
-            return(False)
-
-    for field in ['title','journal','page','vol']:
-        if (field in usefulFields) and (ratio(a1[field],a2[field])<=80):
-            return(False)
-
-    return(True)

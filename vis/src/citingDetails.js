@@ -2,6 +2,22 @@ import React, { Component } from 'react';
 import './citingDetails.css';
 import Map from './glmap';
 
+function reprAuthors(authors){
+  let author='';
+  for (let j=0; j<authors.length; j++){
+    author=author+authors[j].last+', '+authors[j].first;
+    if (j!==(authors.length-1)){
+      author=author+'; ';
+    }else{
+      author=author+'. ';
+    }
+  }
+  return(author);
+}
+function reprField(article, field){
+  return((article[field]!==undefined)?article[field]+'. ':null);
+}
+
 class CitingDetails extends Component {
   constructor(props){
     super(props);
@@ -38,47 +54,46 @@ class CitingDetails extends Component {
   render() {
     let {articles,selected}=this.props;
     let retJSX=[];
+    let header=[];
+    if (selected!==undefined){
+      header.push(<div style={{margin:'20px', display:'flex'}}>
+        Works that cite: {reprAuthors(articles[selected].authors)}{reprField(articles[selected],'year')}{reprField(articles[selected],'title')}{reprField(articles[selected],'journal')}
+      </div>)
+    }
     if (this.state.citingList!==undefined){
       for (let i=0; i<this.state.citingList.length; i++){
         let article=articles[this.state.citingList[i]];
-        console.log(article);
-
-        let author='';
-        for (let j=0; j<article.authors.length; j++){
-          author=author+article.authors[j].last+', '+article.authors[j].first;
-          if (j!==(article.authors.length-1)){
-            author=author+'; ';
-          }else{
-            author=author+'. ';
-          }
-
-        }
+        let author=reprAuthors(article.authors);
         // console.log(article);
         retJSX.push(<li>
-          <p>{author}
-            {(article.year!==undefined)?article.year+'. ':null}
-            <i>{(article.title!==undefined)?article.title+'. ':null}</i>
-            {(article.journal!==undefined)?article.journal+'. ':null}
-            {(article.vol!==undefined)?article.vol+'. ':null}
-            {(article.page!==undefined)?article.page+'. ':null}
+          <p style={{display:'flex'}}>{author}
+            {reprField(article,'year')}
+            <i>{reprField(article,'tittle')}</i>
+            {reprField(article,'journal')}
+            {reprField(article,'vol')}
+            {reprField(article,'page')}
           </p>
-          <div className='abstract'><p>{(article.abstract!==undefined)?article.abstract:null}</p></div>
-          <p style={{fontSize:'small'}}>{(article.Affiliation!==undefined)?article.Affiliation.slice(1,article.Affiliation.length-1):null}</p>
+          <div className='abstract'><p>{reprField(article,'abstract')}</p></div>
+          <p style={{fontSize:'small'}}>{reprField(article,'Affiliation')}</p>
         </li>)
       }
     }
     return (
       <div className="citing">
-        {(this.state.geojson!==undefined)?
+        <div className="map">
           <Map
             geojson={this.state.geojson}
             selected={selected}
           />
-          :null}
-        <div>
-          <ul>
-            {retJSX}
-          </ul>
+        </div>
+
+        <div className='citationlist'>
+          {header}
+          <div>
+            <ul>
+              {retJSX}
+            </ul>
+          </div>
         </div>
       </div>
     );

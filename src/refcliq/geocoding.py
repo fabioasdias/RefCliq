@@ -6,10 +6,9 @@ import networkx as nx
 from fuzzywuzzy.process import extractOne
 from time import sleep, monotonic
 from tqdm import tqdm
+import json
 
-GEOCACHE='geocache.tsv'
-COUNTRYCACHE='countries.tsv'
-PARTSCACHE='parts.tsv'
+CACHE='cache.json'
 
 _addressPattern=re.compile(r"(?P<last>[\w]+),(?P<first>(([\w]+)| |([A-Z](\.)?))*)(\(.*?\))?,(?P<rest>[^.]+)", re.IGNORECASE)
 
@@ -20,48 +19,18 @@ class ArticleGeoCoder:
         self._parts_by_country={}
         self._last_request=monotonic() #keeps track of the last time we used nominatim
         self._nominatim_calls=0
-        if exists(GEOCACHE):
-            self._cache=self._read_cache(GEOCACHE)
-        if exists(PARTSCACHE):
-            self._read_parts()
-        if exists(COUNTRYCACHE):
-            self._country_cache=self._read_cache(COUNTRYCACHE)
+        self._fails={} #Used to avoid repeatedly asking the same thing (leics, england). this state is not saved (it might get updated).
+        if exists(CACHE):
+            with open(CACHE,'r') as fin:
+                data=json.load(fin)
+                self._cache=data['cache']
+                self._parts_by_country=data['parts']
+                self._country_cache=data['country']
     
-
-    def _read_parts(self):
-        with open(PARTSCACHE,'r') as fin:
-            for line in fin:
-                vals=line.split('\t')
-                self._parts_by_country[vals[0]]=int(vals[1])
-
-
-    def _read_cache(self,cachename:str)-> dict:
-        """
-            Reads a file with 3 keys per line:
-            str \t float1 \t float2 \n
-            and returns it as a dictionary
-        """
-        ret={}
-        with open(cachename,'r') as fin:
-            for line in fin:
-                vals=line.split('\t')
-                ret[vals[0]]=[float(vals[1]),float(vals[2])]
-        return(ret)
-
-    def _write_parts(self):
-        with open(PARTSCACHE,'w') as fout:
-            for k in self._parts_by_country:
-                fout.write('{0}\t{1}\n'.format(k,self._parts_by_country[k]))
-
-    def _write_cache(self, cachename:str, cache:dict):
-        with open(cachename,'w') as fout:
-            for k in cache:
-                fout.write('{0}\t{1}\t{2}\n'.format(k, cache[k][0], cache[k][1]))
-
     def _save_state(self):
-        self._write_cache(GEOCACHE, self._cache)
-        self._write_cache(COUNTRYCACHE, self._country_cache)
-        self._write_parts()
+        to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country}
+        with open('cache.json','w') as fout:
+            json.dump(to_save, fout)
     
     def _cache_search(self, address:str, country:bool=False, ratio:float=90)->list:
         """
@@ -70,11 +39,13 @@ class ArticleGeoCoder:
         """
         if len(self._cache)>0:
             if country:
-                return(address, self._country_cache.get(address))
-
-            maybe, how_well = extractOne(address, self._cache.keys())
-            if how_well >= ratio:
-                return(maybe,self._cache[maybe])
+                return(address, self._country_cache.get(address.lower()))
+            c=address.split(',')[-1].lower()
+            maybe_country, how_well = extractOne(c, self._cache.keys())
+            if (how_well>=ratio):
+                maybe, how_well = extractOne(address.lower(), self._cache[maybe_country].keys())
+                if how_well >= ratio:
+                    return(maybe, self._cache[maybe_country][maybe])
         return(None,None)
 
     def _add(self, address:str, coords:list, country:bool=False):
@@ -82,9 +53,12 @@ class ArticleGeoCoder:
             Adds (address, coords) to the appropriate cache.
         """
         if country:
-            self._country_cache[address]=coords[:]
+            self._country_cache[address.lower()]=coords[:]
         else:
-            self._cache[address]=coords[:]
+            c=address.split(',')[-1].lower()
+            if c not in self._cache:
+                self._cache[c]={}
+            self._cache[c][address.lower()]=coords[:]
 
     def add_authors_location_inplace(self, G:nx.Graph):
         """
@@ -112,13 +86,19 @@ class ArticleGeoCoder:
         delta = monotonic() - self._last_request
         if delta <= 1:
             sleep(1-delta)
-        res=geocoder.osm(address)#, url='http://192.168.2.47/nominatim/')
-        # print('osm req', address, self._nominatim_calls)
-        self._nominatim_calls += 1
-        self._last_request = monotonic()
+        #if we tried that in this run and it failed, don't try again
+        if (address not in self._fails):
+            res=geocoder.osm(address)#, url='http://192.168.2.47/nominatim/')
+            # print('osm req', address, self._nominatim_calls)
+            self._nominatim_calls += 1
+            self._last_request = monotonic()
+        else:
+            return(None)
+
         if res and res.ok:
             return([res.osm['x'], res.osm['y']])
         else:
+            self._fails[address]=True #dict is faster than list
             return(None)
 
     
@@ -131,6 +111,11 @@ class ArticleGeoCoder:
             - Name of the country.
         """
         # print('---- Doing', full_address)
+        #some US address don't bother saying "USA" at the end:
+        last = full_address.split(' ')[-1]
+        if (len(last)==5) and (all([x.isdigit() for x in last])):
+            full_address=full_address+', USA'
+
         #OSM doesn't understand PRC; USA addresses are usually ", CA 95000 USA" ; Rep of Georgia doesn't work either
         address_to_use=full_address.replace('Peoples R','').replace(' USA',', USA').replace('Rep of','')
         
@@ -175,7 +160,7 @@ class ArticleGeoCoder:
 
 
     def _get_coordinates(self, affiliation:str):
-        aff=cleanCurlyAround(affiliation).replace(r'\&','')
+        aff=affiliation.replace('&','')
         # print('+++ Affiliation',aff)
         matches=_addressPattern.finditer(aff)
         addresses=[entry.group('rest') for entry in matches]

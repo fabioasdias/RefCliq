@@ -51,7 +51,7 @@ let Map = class Map extends React.Component {
 
   constructor(props){
     super(props);
-    this.state={map:undefined,selected:undefined,geojson:undefined}
+    this.state={map:undefined};
   }
     
   componentDidUpdate() {
@@ -59,7 +59,7 @@ let Map = class Map extends React.Component {
   }
 
   componentWillReceiveProps(props){
-    if (this.props.selected!==props.selected){
+    if ((props.geojson!==undefined)&&(this.props.selected!==props.selected)){
       this.addLayer(props.geojson);
     }
   }
@@ -73,8 +73,9 @@ let Map = class Map extends React.Component {
       zoom: 0.6,
     });
     this.map.on('load', () => {
-      this.addLayer(this.props.geojson);
-      // console.log(this.props.geojson);
+      if (this.props.geojson!==undefined){
+        this.addLayer(this.props.geojson);
+      }
     });
 
     
