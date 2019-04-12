@@ -69,11 +69,7 @@ class ArticleGeoCoder:
         print('Getting coordinates for each author affiliation')
         for n in tqdm(G):
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
-                city, country, names = self._get_coordinates(G.node[n]['data']['Affiliation'])
-                if city is not None:
-                    G.node[n]['data']['accurate_coords'] = city
-                    G.node[n]['data']['country_coords'] = country
-                    G.node[n]['data']['countries'] = names
+                G.node[n]['data']['geo'] = self._get_coordinates(G.node[n]['data']['Affiliation'])
         return(G)
 
     def _nominatim(self, address:str)->list:
@@ -124,10 +120,10 @@ class ArticleGeoCoder:
         country=all_vals[-1]
 
         #keeps track of how many address parts works for this country to avoid unnecessary calls - Minimum 2.
-        if country not in self._parts_by_country:
-            self._parts_by_country[country]=max([2,len(all_vals)])
+        if country.lower() not in self._parts_by_country:
+            self._parts_by_country[country.lower()]=max([2,len(all_vals)])
 
-        i=min([len(all_vals),self._parts_by_country[country]])
+        i=min([len(all_vals),self._parts_by_country[country.lower()]])
         tried_addresses=[]
         accurate=None        
         cacheChanged=False
@@ -155,7 +151,7 @@ class ArticleGeoCoder:
                         # print('added', add)
                         self._add(add,coords)
                     accurate=coords[:]
-                    self._parts_by_country[country]=min([i,self._parts_by_country[country]])
+                    self._parts_by_country[country.lower()]=min([i,self._parts_by_country[country.lower()]])
                     i=1
 
 
@@ -165,17 +161,10 @@ class ArticleGeoCoder:
         matches=_addressPattern.finditer(aff)
         addresses=[entry.group('rest') for entry in matches]
         if not addresses:
-            return(None,None,None)
+            return([])
 
-        accurate_coords=[]
-        country_coords=[]
-        country_names={}
+        res=[]
         for address in addresses:
             accurate,country,name=self._lookup(address)
-            if accurate:
-                accurate_coords.append(accurate)
-            if country and (name not in country_names):
-                country_coords.append(country)
-                country_names[name]=True #checking in a dictionary is faster than in a list
-                
-        return(accurate_coords, country_coords, list(country_names.keys()))
+            res.append({'accurate':accurate, 'generic':country, 'country':name})
+        return(res)

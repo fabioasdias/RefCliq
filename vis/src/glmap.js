@@ -2,7 +2,7 @@ import React from 'react';
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css';
 import './glmap.css'
-// import bbox from '@turf/bbox';
+import bbox from '@turf/bbox';
 
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiZGlhc2YiLCJhIjoiY2pzbmNqd2c3MGIxZDQ0bjVpa2RsZXU1YSJ9.udvxholRALOFEV4ciCh-Lg';
@@ -11,9 +11,9 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiZGlhc2YiLCJhIjoiY2pzbmNqd2c3MGIxZDQ0bjVpa2RsZ
 let Map = class Map extends React.Component {
 
   addLayer(gj){
-    // let bounds=bbox(this.props.geojson);
-    // bounds=[[bounds[0],bounds[1]],
-    //         [bounds[2],bounds[3]]];         
+    let bounds=bbox(gj);
+    bounds=[[bounds[0],bounds[1]],
+            [bounds[2],bounds[3]]];         
 
 
     if (this.map.getLayer('points')){
@@ -34,14 +34,16 @@ let Map = class Map extends React.Component {
       "source": 'points',
       "layout": {
         "icon-image": "{icon}-15",
+        "icon-allow-overlap": true,
         "text-field": "{title}",
+        'text-allow-overlap': true,
         "text-offset": [0, 0.6],
         "text-anchor": "top"
       }});
 
-    // this.map.fitBounds(bounds,{
-    //   padding: {top: 20, bottom:20, left: 30, right: 30}
-    // });
+    this.map.fitBounds(bounds,{
+      padding: {top: 20, bottom:20, left: 30, right: 30}
+    });
     this.setState({'map':this.map});
     // console.log(this.map.getZoom());
   }
@@ -69,7 +71,7 @@ let Map = class Map extends React.Component {
     this.map = new mapboxgl.Map({
       container: this.mapContainer,
       style: 'mapbox://styles/mapbox/light-v9',
-      interactive: false,
+      // interactive: false,
       zoom: 0.6,
     });
     this.map.on('load', () => {

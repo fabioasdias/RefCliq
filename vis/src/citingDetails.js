@@ -15,7 +15,15 @@ function reprAuthors(authors){
   return(author);
 }
 function reprField(article, field){
-  return((article[field]!==undefined)?article[field]+'. ':null);
+  if (article[field]!==undefined){
+    if (article[field][article[field].length-1]!=='.'){
+      return(article[field]+'. ');
+    }
+    else{
+      return(article[field]);
+    }
+  }
+  return(null);
 }
 
 class CitingDetails extends Component {
@@ -32,21 +40,37 @@ class CitingDetails extends Component {
       for (let i=0;i<articles[selected].cites_this.length;i++){
         let citingID=articles[selected].cites_this[i];
         let citing=articles[citingID];
-        for (let j=0; j<citing.accurate_coords.length; j++){
+        for (let j=0; j<citing.geo.length; j++){
+          let kind;
+          let coords;
+          if (citing.geo[j].accurate!==null){
+            kind='accurate';
+            coords=citing.geo[j].accurate;
+          }else{
+            if (citing.geo[j].generic===null){
+              //no viable points
+              continue;
+            }
+            kind='generic';
+            coords=citing.geo[j].generic;
+          }
           gj.features.push({
             type: "Feature",
             properties: {
               year: citing.year,
-              "title": citing.year,
-              "icon": "marker"
+              country: citing.geo[j].country,
+              kind : kind,
+              title: citing.year,
+              icon: "marker"
             },
             geometry: {
               type: "Point",
-              coordinates: [citing.accurate_coords[j][0], citing.accurate_coords[j][1]]
+              coordinates: coords
             }
           });  
         }
       }
+      console.log(gj);
       this.setState({geojson:gj});
     }
   }

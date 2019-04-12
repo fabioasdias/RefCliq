@@ -176,7 +176,7 @@ class CitationNetwork(nx.DiGraph):
                     self._authorName[index].remove(n)
 
                 for field in [f for f in self.node[n]['data'] if self.node[n]['data'][f]]:
-                    if (field=='abstract') and (self.node[n]['data'][field]!='') and (article[field]==''):
+                    if (field=='abstract') and (self.node[n]['data'][field]!='') and ((field not in article) or (article[field]=='')):
                         article[field]=self.node[n]['data'][field]
                     elif (field=='authors') and len(self.node[n]['data']['authors'])>len(article['authors']):
                         article['authors']=self.node[n]['data']['authors'][:]
@@ -409,7 +409,7 @@ class CitationNetwork(nx.DiGraph):
 
         cv=CountVectorizer(max_df=0.85, stop_words=stop_words, max_features=10000, ngram_range=(1,3))
         X=cv.fit_transform(corpus)
-        tfidf_transformer=TfidfTransformer(smooth_idf=True,use_idf=True)
+        tfidf_transformer=TfidfTransformer(use_idf=False)
         tfidf_transformer.fit(X)
         # get feature names
         feature_names=cv.get_feature_names()
