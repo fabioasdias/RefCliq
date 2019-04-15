@@ -7,10 +7,47 @@ import bbox from '@turf/bbox';
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiZGlhc2YiLCJhIjoiY2pzbmNqd2c3MGIxZDQ0bjVpa2RsZXU1YSJ9.udvxholRALOFEV4ciCh-Lg';
 
+class YearControl {
+  constructor(callback){
+    this.callbackfcn=callback;
+  }
+  onAdd(map){
+    this.map = map;
+    this.container = document.createElement('div');
+    this.container.className = 'year-control';
+
+    var x = document.createElement("SELECT");
+    x.setAttribute("id", "mySelect");
+    document.body.appendChild(x);
+
+    var z = document.createElement("option");
+    z.setAttribute("value", "volvocar");
+    var t = document.createTextNode("Volvo");
+    z.appendChild(t);
+    document.getElementById("mySelect").appendChild(z);
+  
+    // this.container.textContent = 'My custom control';
+    // this.container.onclick = this.callbackfcn;
+    return(this.container);
+  }
+  onRemove(){
+    this.container.parentNode.removeChild(this.container);
+    this.map = undefined;
+  }
+}
 
 let Map = class Map extends React.Component {
+  constructor(props){
+    super(props);
+    this.state={map:undefined};
+  }
 
   addLayer(gj){
+
+    if (gj.features.length===0){
+      return;
+    }
+
     let bounds=bbox(gj);
     bounds=[[bounds[0],bounds[1]],
             [bounds[2],bounds[3]]];         
@@ -28,18 +65,27 @@ let Map = class Map extends React.Component {
       "data": gj
     });
 
-    this.map.addLayer({
-      "id": "points",
-      "type": "symbol",
-      "source": 'points',
-      "layout": {
-        "icon-image": "{icon}-15",
-        "icon-allow-overlap": true,
-        "text-field": "{title}",
-        'text-allow-overlap': true,
-        "text-offset": [0, 0.6],
-        "text-anchor": "top"
-      }});
+    if ((this.props.heatmap===undefined)||(this.props.heatmap===false)){
+      this.map.addLayer({
+        "id": "points",
+        "type": "symbol",
+        "source": 'points',
+        "layout": {
+          "icon-image": "{icon}-15",
+          "icon-allow-overlap": true,
+          "text-field": "{title}",
+          'text-allow-overlap': true,
+          "text-offset": [0, 0.6],
+          "text-anchor": "top"
+        }});  
+    }else{
+      this.map.addLayer({
+        "id": "points",
+        "type": "heatmap",
+        "source": 'points'
+      });  
+
+    }
 
     this.map.fitBounds(bounds,{
       padding: {top: 20, bottom:20, left: 30, right: 30}
@@ -51,10 +97,6 @@ let Map = class Map extends React.Component {
   setFill(){
   }
 
-  constructor(props){
-    super(props);
-    this.state={map:undefined};
-  }
     
   componentDidUpdate() {
     this.setFill();
@@ -80,6 +122,10 @@ let Map = class Map extends React.Component {
       }
     });
 
+
+    // const yearControl = new YearControl(yearSelection);
+    // this.map.addControl(yearControl);
+    
     
   }
 

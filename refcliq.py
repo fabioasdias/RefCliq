@@ -29,10 +29,14 @@ from networkx.readwrite import json_graph
 
 if __name__ == '__main__':
     parser = OptionParser()
-    parser.add_option("-d", "--directory_name",
+    parser.add_option("-o", "--output_file",
                     action="store", type="string", 
-                    help="Output directory, defaults to 'clusters'",
-                    dest="directory_name",default='clusters')
+                    help="Output file to save, defaults to 'clusters.json'.",
+                    dest="output_file",default='clusters.json')
+    parser.add_option("-g", "--geocode",
+                    action="store_true",
+                    help="Geocode the citing papers using Nominatim public servers, limited to 1 request/second.",
+                    dest="geocode", default=False)
     (options, args) = parser.parse_args()
 
     if len(args)==0:
@@ -40,16 +44,18 @@ if __name__ == '__main__':
         parser.print_help()
         exit(-1)
 
+    if options.geocode==False:
+        print("\n\nNOT computing geographic coordinates for citing papers!\nPass -g/--geocode to enable geocoding.\n")
     
-    citation_network=CitationNetwork(import_bibs(args),geocode=True)    
+    citation_network=CitationNetwork(import_bibs(args), geocode=options.geocode)    
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
     citation_network.compute_keywords()
     co_citation_network=citation_network.cocitation()
 
     print('Partitioning')
-    partition = best_partition(co_citation_network, weight='count', random_state=7) #stability
+    partition = best_partition(co_citation_network, weight='count', random_state=7) #deterministic
     print('Saving results')
-    output={}
+    output={'geocoded':options.geocode}
 
     parts={}
     for n in partition:
@@ -83,5 +89,9 @@ if __name__ == '__main__':
         articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
     output['articles']=articles
 
-    with open('out.json','w') as fout:
+    outName=options.output_file
+    if not outName.endswith('.json'):
+        outName=outName+'.json'
+
+    with open(outName,'w') as fout:
         json.dump(output, fout, indent=4, sort_keys=True)

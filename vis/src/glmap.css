@@ -7,3 +7,11 @@
     border-width: medium;
     float: left;
   }
+  .year-control {
+    border: solid;
+    border-width: thin;
+    background: #FFF;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px;
+  }
