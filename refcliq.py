@@ -51,6 +51,12 @@ if __name__ == '__main__':
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
     citation_network.compute_keywords()
     co_citation_network=citation_network.cocitation()
+    for n in citation_network:
+        citation_network.node[n]['data']['original_cc']=-1
+
+    for i,gg in enumerate(nx.connected_components(co_citation_network)):
+        for n in gg:
+            citation_network.node[n]['data']['original_cc']=i
 
     print('Partitioning')
     partition = best_partition(co_citation_network, weight='count', random_state=7) #deterministic
@@ -85,7 +91,9 @@ if __name__ == '__main__':
     for n in citation_network:
         articles[n] = citation_network.node[n]['data']
         articles[n]['cites_this']=[p for p in citation_network.predecessors(n)]
+        articles[n]['cited_count']=len(articles[n]['cites_this'])
         articles[n]['references']=[p for p in citation_network.successors(n)]
+        articles[n]['reference_count']=len(articles[n]['references'])
         articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
     output['articles']=articles
 
@@ -94,4 +102,4 @@ if __name__ == '__main__':
         outName=outName+'.json'
 
     with open(outName,'w') as fout:
-        json.dump(output, fout, indent=4, sort_keys=True)
+        json.dump(output, fout)#, indent=4, sort_keys=True)

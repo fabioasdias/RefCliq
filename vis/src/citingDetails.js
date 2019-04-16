@@ -47,10 +47,10 @@ function reprField(article, field){
 class CitingDetails extends Component {
   constructor(props){
     super(props);
-    this.state={geojson:undefined, citingList:[], heatmap:false, year:-1};
+    this.state={geojson:undefined, citingList:[], heatmap:false, year:'-1'};
   }
 
-  updateGeoJSON(articles,selected, year){
+  updateGeoJSON(articles, selected, year){
     let gj={type: "FeatureCollection", features:[]};
 
     for (let i=0;i<articles[selected].cites_this.length;i++){
@@ -63,7 +63,7 @@ class CitingDetails extends Component {
         continue; //WEIRD
       }
       for (let j=0; j<citing.geo.length; j++){
-        if ((year!==-1)&&(year!==citing.year)){
+        if ((year!=='-1')&&(year!==citing.year)){
           continue;
         }
 
@@ -96,7 +96,7 @@ class CitingDetails extends Component {
         });  
       }
     }
-    this.setState({geojson:gj});
+    return(gj);
   }
 
   componentWillReceiveProps(props){
@@ -104,7 +104,7 @@ class CitingDetails extends Component {
       let citinglist=props.articles[props.selected].cites_this.slice().sort((a,b)=>{
         return(parseInt(props.articles[a].year,10)-parseInt(props.articles[b].year,10));
       });
-      this.updateGeoJSON(props.articles, props.selected, this.state.year);
+      let gj=this.updateGeoJSON(props.articles, props.selected, this.state.year);
       let years=[];
       let yearsOp=[];
       for (let i=0;i<citinglist.length;i++){
@@ -114,11 +114,11 @@ class CitingDetails extends Component {
         return(parseInt(a,10)-parseInt(b,10));
       });
 
-      yearsOp.push({id:-1,name:'All'})
+      yearsOp.push({id:'-1',name:'All'})
       for (let i=0; i< years.length; i++){
         yearsOp.push({id:years[i],name:years[i]});
       }
-      this.setState({citingList:citinglist, yearOptions:yearsOp});
+      this.setState({geojson:gj, citingList:citinglist, yearOptions:yearsOp});
     }
   }
 
@@ -140,9 +140,6 @@ class CitingDetails extends Component {
 
       for (let i=0; i<this.state.citingList.length; i++){
         let article=articles[this.state.citingList[i]];  
-        if(article.centrality===null){
-          console.log('null',article);
-        }
         let line=String(this.state.citingList[i]+'\t');
         for (let j=0;j<fields.length;j++){
           let field=fields[j];
@@ -164,7 +161,6 @@ class CitingDetails extends Component {
         }
         TSV.push(line+'\n');
       }
-      console.log(TSV);
       return(TSV);
     };
     //https://stackoverflow.com/questions/44656610/download-a-string-as-txt-file-in-react
@@ -205,33 +201,36 @@ class CitingDetails extends Component {
         </li>)
       }
     }
+    console.log('map',this.state.heatmap);
     return (
       <div className="citing">
-        <div className="map">
+        {((this.props.geocoded!==undefined)&&(this.props.geocoded))?<div className="map">
           <Map
             geojson={this.state.geojson}
             selected={selected}
             heatmap={this.state.heatmap}
+            year={this.state.year}
           />
-        </div>
+        </div>:null}
 
         <div className='citationlist'>
-          <div style={{border:'solid',borderWidth:'thin'}}>
+          <div style={{display:'flex'}}>
             <input 
               name="heatmap" 
               type="checkbox"              
-              checked={this.state.heatmap}
+              defaultValue={this.state.heatmap}
               key={'heat'}
-              onChange={()=>{this.setState({heatmap:!this.state.heatmap})}} 
+              onChange={(e)=>{
+                this.setState({heatmap: e.target.checked})}} 
             /> Heatmap
             {(this.state.yearOptions!==undefined)?
               <select 
                 defaultValue={this.state.year}
+                style={{marginLeft:'20px'}}
                 onChange={(e)=>{
                     let selYear=e.target.value;
-                    this.updateGeoJSON(this.props.articles, this.props.selected, selYear);
-                    console.log(selYear);
-                    this.setState({year:selYear});
+                    let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear);
+                    this.setState({geojson:gj, year:selYear});
                 }} >
                 {this.state.yearOptions.map( (e) => {
                     return(<option 

@@ -22,7 +22,8 @@ class App extends Component {
     getData('data.json',(json)=> {
       console.log(json);
       this.setState({articles : json.articles, 
-                     clusters : json.partitions
+                     clusters : json.partitions,
+                     geo : json.geocoded,
                     });
     });
   }
@@ -42,6 +43,7 @@ class App extends Component {
           <CitingDetails
             articles={this.state.articles}
             selected={this.state.selected}
+            geocoded={this.state.geo}
           />
         </div>
       </div>

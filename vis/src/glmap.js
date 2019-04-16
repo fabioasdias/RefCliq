@@ -42,7 +42,7 @@ let Map = class Map extends React.Component {
     this.state={map:undefined};
   }
 
-  addLayer(gj){
+  addLayer(gj, heatmap){
 
     if (gj.features.length===0){
       return;
@@ -64,8 +64,8 @@ let Map = class Map extends React.Component {
       "type": "geojson",
       "data": gj
     });
-
-    if ((this.props.heatmap===undefined)||(this.props.heatmap===false)){
+    if (heatmap===false){
+      console.log('symbol')
       this.map.addLayer({
         "id": "points",
         "type": "symbol",
@@ -79,6 +79,7 @@ let Map = class Map extends React.Component {
           "text-anchor": "top"
         }});  
     }else{
+      console.log('heat')
       this.map.addLayer({
         "id": "points",
         "type": "heatmap",
@@ -103,8 +104,10 @@ let Map = class Map extends React.Component {
   }
 
   componentWillReceiveProps(props){
-    if ((props.geojson!==undefined)&&(this.props.selected!==props.selected)){
-      this.addLayer(props.geojson);
+    if ((props.geojson!==undefined)&&
+    ((this.props.heatmap!==props.heatmap)||(this.props.year!==props.year)||(this.props.selected!==props.selected))){
+      console.log('updating')
+      this.addLayer(props.geojson, props.heatmap);
     }
   }
 
@@ -115,6 +118,7 @@ let Map = class Map extends React.Component {
       style: 'mapbox://styles/mapbox/light-v9',
       // interactive: false,
       zoom: 0.6,
+      maxzoom: 12
     });
     this.map.on('load', () => {
       if (this.props.geojson!==undefined){
