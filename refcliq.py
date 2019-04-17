@@ -26,6 +26,8 @@ import json
 from tqdm import tqdm
 import networkx as nx
 from networkx.readwrite import json_graph
+from os.path import exists
+import pickle
 
 if __name__ == '__main__':
     parser = OptionParser()
@@ -46,11 +48,26 @@ if __name__ == '__main__':
 
     if options.geocode==False:
         print("\n\nNOT computing geographic coordinates for citing papers!\nPass -g/--geocode to enable geocoding.\n")
-    
-    citation_network=CitationNetwork(import_bibs(args), geocode=options.geocode)    
+
+    checkpoint_cn=options.output_file+'_cn.p'
+    if exists(checkpoint_cn):
+        citation_network=CitationNetwork()
+        citation_network.load(checkpoint_cn)
+    else:
+        citation_network=CitationNetwork(import_bibs(args), checkpoint_prefix=options.output_file, geocode=options.geocode)    
+        citation_network.compute_keywords()
+        citation_network.save(checkpoint_cn)
+
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
-    citation_network.compute_keywords()
-    co_citation_network=citation_network.cocitation()
+
+    checkpoint_cocn=options.output_file+'_cocn.p'
+    if exists(checkpoint_cocn):
+        co_citation_network=nx.read_gpickle(checkpoint_cocn)
+    else:
+        co_citation_network=citation_network.cocitation()
+        nx.write_gpickle(co_citation_network, checkpoint_cocn)
+
+
     for n in citation_network:
         citation_network.node[n]['data']['original_cc']=-1
 
@@ -58,8 +75,17 @@ if __name__ == '__main__':
         for n in gg:
             citation_network.node[n]['data']['original_cc']=i
 
-    print('Partitioning')
-    partition = best_partition(co_citation_network, weight='count', random_state=7) #deterministic
+    checkpoint_part = options.output_file+'_part.p'
+    if exists(checkpoint_part):
+        with open(checkpoint_part,'rb') as f:
+            partition = pickle.load(f)
+    else:
+        print('Partitioning')
+        partition = best_partition(co_citation_network, weight='count', random_state=7) #deterministic
+        with open(checkpoint_part,'wb') as f:
+            pickle.dump(partition,f)
+
+
     print('Saving results')
     output={'geocoded':options.geocode}
 

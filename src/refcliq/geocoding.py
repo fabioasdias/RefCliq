@@ -32,18 +32,29 @@ class ArticleGeoCoder:
         with open('cache.json','w') as fout:
             json.dump(to_save, fout)
     
-    def _cache_search(self, address:str, country:bool=False, ratio:float=90)->list:
+    def _cache_search(self, full_address:str, country:bool=False, ratio:float=90)->list:
         """
             Performs a cache search for the address. 
             if country=True, ratio is ignored, only string matches count.
         """
         if len(self._cache)>0:
+            address=full_address.lower()
             if country:
-                return(address, self._country_cache.get(address.lower()))
-            c=address.split(',')[-1].lower()
-            maybe_country, how_well = extractOne(c, self._cache.keys())
+                return(address, self._country_cache.get(address))
+
+            #hash checking is faster, so let's try accurate before fuzzy
+            c=address.split(',')[-1]
+            if (c in self._cache):
+                maybe_country=c
+                how_well=100
+            else:
+                maybe_country, how_well = extractOne(c, self._cache.keys())
+
             if (how_well>=ratio):
-                maybe, how_well = extractOne(address.lower(), self._cache[maybe_country].keys())
+                if (address in self._cache[maybe_country]):
+                    return(address, self._cache[maybe_country][address])
+
+                maybe, how_well = extractOne(address, self._cache[maybe_country].keys())
                 if how_well >= ratio:
                     return(maybe, self._cache[maybe_country][maybe])
         return(None,None)
@@ -52,13 +63,14 @@ class ArticleGeoCoder:
         """
             Adds (address, coords) to the appropriate cache.
         """
+        low_address=address.lower()
         if country:
-            self._country_cache[address.lower()]=coords[:]
+            self._country_cache[low_address]=coords[:]
         else:
-            c=address.split(',')[-1].lower()
+            c=low_address.split(',')[-1]
             if c not in self._cache:
                 self._cache[c]={}
-            self._cache[c][address.lower()]=coords[:]
+            self._cache[c][low_address]=coords[:]
 
     def add_authors_location_inplace(self, G:nx.Graph):
         """

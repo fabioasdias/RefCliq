@@ -47,7 +47,7 @@ function reprField(article, field){
 class CitingDetails extends Component {
   constructor(props){
     super(props);
-    this.state={geojson:undefined, citingList:[], heatmap:false, year:'-1'};
+    this.state={geojson:undefined, citingList:[], fit:true, heatmap:false, year:'-1'};
   }
 
   updateGeoJSON(articles, selected, year){
@@ -201,7 +201,6 @@ class CitingDetails extends Component {
         </li>)
       }
     }
-    console.log('map',this.state.heatmap);
     return (
       <div className="citing">
         {((this.props.geocoded!==undefined)&&(this.props.geocoded))?<div className="map">
@@ -210,20 +209,29 @@ class CitingDetails extends Component {
             selected={selected}
             heatmap={this.state.heatmap}
             year={this.state.year}
+            fit={this.state.fit}
           />
         </div>:null}
 
-        <div className='citationlist'>
-          <div style={{display:'flex'}}>
+        <div className={this.state.geocoded?'citationlist':'citationlistExtended'}>
+          {((this.state.yearOptions!==undefined)&&(this.props.geocoded))?
+          <div style={{display:'flex'}}>  
+            <input 
+              name="fitmap" 
+              type="checkbox"              
+              defaultChecked={this.state.fit}
+              key={'fit'}
+              onChange={(e)=>{
+                this.setState({fit: e.target.checked})}} 
+            /> Fit to markers
             <input 
               name="heatmap" 
               type="checkbox"              
-              defaultValue={this.state.heatmap}
+              defaultChecked={this.state.heatmap}
               key={'heat'}
               onChange={(e)=>{
                 this.setState({heatmap: e.target.checked})}} 
-            /> Heatmap
-            {(this.state.yearOptions!==undefined)?
+            /> Heatmap            
               <select 
                 defaultValue={this.state.year}
                 style={{marginLeft:'20px'}}
@@ -241,9 +249,9 @@ class CitingDetails extends Component {
                                 {e.name}  
                           </option>)
                 })}
-              </select> :null}
+              </select> 
 
-          </div>
+          </div>:null}
           {header}
           <div>
             <ul>

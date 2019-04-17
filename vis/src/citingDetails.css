@@ -19,6 +19,12 @@
     height: 500px;
     overflow-y: scroll;
 }
+.citationlistExtended {
+    width: 100%;
+    height: 908px;
+    overflow-y: scroll;
+}
+
 .hfill {
     width: fit-content;
     margin-left: auto;

@@ -18,6 +18,9 @@ from src.refcliq.textprocessing import tokens_from_sentence
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from scipy.sparse import coo_matrix
 
+from os.path import exists
+import pickle
+
 download('wordnet')
 
 #https://medium.com/analytics-vidhya/automated-keyword-extraction-from-articles-using-nlp-bfd864f41b34
@@ -104,7 +107,7 @@ def same_article(a1:dict, a2:dict)->bool:
     return(True)
 
 class CitationNetwork(nx.DiGraph):
-    def __init__(self, articles:list=None, geocode:bool=True):
+    def __init__(self, articles:list=None, checkpoint_prefix:str='chk', geocode:bool=True):
         nx.DiGraph.__init__(self)
         # self._G=nx.DiGraph() #the network
         self._year={'None':[]}        #indexes
@@ -114,12 +117,21 @@ class CitationNetwork(nx.DiGraph):
         self._authorName={0:[]} #None might be a part of a name
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
         if articles:
-            self.build(articles, geocode)
+            self.build(articles, checkpoint_prefix, geocode)
 
+    def save(self, filename:str):
+        """Saves the citation network structure to filename"""
+        with open(filename, 'wb') as f:
+            pickle.dump(self.__dict__, f)
 
+    def load(self, filename:str):
+        """Loads the citation network structure from filename"""
+        with open(filename,'rb') as f:
+            tmp_dict = pickle.load(f)
+        self.__dict__.update(tmp_dict) 
     
 
-    def build(self, articles:list, geocode:bool=True):
+    def build(self, articles:list, checkpoint_prefix:str, geocode:bool=True):
         """
         Builds a directed graph to represent the citation network in the list of
         articles.
@@ -128,12 +140,27 @@ class CitationNetwork(nx.DiGraph):
             gc=ArticleGeoCoder()
 
 
-        print('citation network - Full citation in the .bibs')
-        for article in tqdm(articles):
-            citing=self.find(article)
-        if geocode:
-            gc.add_authors_location_inplace(self)
-            print('Nominatim calls ', gc._nominatim_calls)
+        checkpoint_all = checkpoint_prefix + '_bib_all.p'
+        if exists(checkpoint_all):
+            self.load(checkpoint_all)
+            return
+
+        checkpoint_geo = checkpoint_prefix+'_bib_geo.p'
+        if geocode and exists(checkpoint_geo):
+            self.load(checkpoint_geo)
+        else:
+            checkpoint_bib_entries=checkpoint_prefix+'_bib_entries.p'
+            if exists(checkpoint_bib_entries):
+                self.load(checkpoint_bib_entries)
+            else:
+                print('citation network - Full citation in the .bibs')            
+                for article in tqdm(articles):
+                    citing=self.find(article)
+                self.save(checkpoint_bib_entries)
+            if geocode:
+                gc.add_authors_location_inplace(self)
+                print('Nominatim calls ', gc._nominatim_calls)
+            self.save(checkpoint_geo)
 
         print('citation network - Cited-References')            
         for article in tqdm(articles):
@@ -141,6 +168,8 @@ class CitationNetwork(nx.DiGraph):
             for cited_article in article['references']:
                 cited=self.find(cited_article)
                 self.add_edge(citing,cited)
+
+        self.save(checkpoint_all)
 
     def add(self, article:dict, replaceNode:str=None)->str:
         """

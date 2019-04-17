@@ -65,7 +65,6 @@ let Map = class Map extends React.Component {
       "data": gj
     });
     if (heatmap===false){
-      console.log('symbol')
       this.map.addLayer({
         "id": "points",
         "type": "symbol",
@@ -79,7 +78,6 @@ let Map = class Map extends React.Component {
           "text-anchor": "top"
         }});  
     }else{
-      console.log('heat')
       this.map.addLayer({
         "id": "points",
         "type": "heatmap",
@@ -87,12 +85,12 @@ let Map = class Map extends React.Component {
       });  
 
     }
-
-    this.map.fitBounds(bounds,{
-      padding: {top: 20, bottom:20, left: 30, right: 30}
-    });
+    if (this.props.fit===true){
+      this.map.fitBounds(bounds,{
+        padding: {top: 20, bottom:20, left: 30, right: 30}
+      });  
+    }
     this.setState({'map':this.map});
-    // console.log(this.map.getZoom());
   }
 
   setFill(){
@@ -106,7 +104,6 @@ let Map = class Map extends React.Component {
   componentWillReceiveProps(props){
     if ((props.geojson!==undefined)&&
     ((this.props.heatmap!==props.heatmap)||(this.props.year!==props.year)||(this.props.selected!==props.selected))){
-      console.log('updating')
       this.addLayer(props.geojson, props.heatmap);
     }
   }
