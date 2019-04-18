@@ -12,26 +12,59 @@ CACHE='cache.json'
 
 _addressPattern=re.compile(r"(?P<last>[\w]+),(?P<first>(([\w]+)| |([A-Z](\.)?))*)(\(.*?\))?,(?P<rest>[^.]+)", re.IGNORECASE)
 
+def _computeFV(s:str)->list:
+    """
+        Computes a normalized histogram of the (common) letters in s.
+    """
+    trans = {}
+    for i,c in enumerate('abcdefghiklmnopqrstuvwxyz'):
+        trans[c]=i
+
+    ret=[0,]*len(trans)
+    for c in s.lower():
+        if (c in trans):
+            ret[trans[c]]+=1
+    return([x/sum(ret) for x in ret])
+
+def _distanceFV(v1:list, v2:list)->float:
+    """
+        Computes the distance between two feature vectors
+    """
+    ret=0
+    for i in range(len(v1)):
+        ret+=abs(v1[i]-v2[i])
+    return(ret/2.0)
+
 class ArticleGeoCoder:
     def __init__(self):
         self._cache={}
+        self._cacheFV={}
         self._country_cache={}#otherwise "xxxx USA" returns "USA"'s entry from the cache...
         self._parts_by_country={}
         self._last_request=monotonic() #keeps track of the last time we used nominatim
         self._nominatim_calls=0
-        self._fails={} #Used to avoid repeatedly asking the same thing (leics, england). this state is not saved (it might get updated).
+        self._fails={} #Used to avoid repeatedly asking the same thing (leics, england). 
+                        #this state is not saved (it might get updated).
         if exists(CACHE):
             with open(CACHE,'r') as fin:
                 data=json.load(fin)
                 self._cache=data['cache']
+                if ('fv' not in data): #calculate the FV
+                    for c in self._cache:
+                        self._cacheFV[c]={}
+                        for ad in self._cache[c]:
+                            self._cacheFV[c][ad]=_computeFV(ad)
+                else:
+                    self._cacheFV=data['fv']
+
                 self._parts_by_country=data['parts']
                 self._country_cache=data['country']
     
     def _save_state(self):
-        to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country}
+        to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country, 'fv':self._cacheFV}
         with open('cache.json','w') as fout:
             json.dump(to_save, fout)
-    
+    # @profile
     def _cache_search(self, full_address:str, country:bool=False, ratio:float=90)->list:
         """
             Performs a cache search for the address. 
@@ -54,9 +87,13 @@ class ArticleGeoCoder:
                 if (address in self._cache[maybe_country]):
                     return(address, self._cache[maybe_country][address])
 
-                maybe, how_well = extractOne(address, self._cache[maybe_country].keys())
-                if how_well >= ratio:
-                    return(maybe, self._cache[maybe_country][maybe])
+                fv = _computeFV(address)
+                to_look= [ad for ad in self._cacheFV[maybe_country] if _distanceFV(fv,self._cacheFV[maybe_country][ad])<0.25]
+
+                if to_look:
+                    maybe, how_well = extractOne(address, to_look)
+                    if how_well >= ratio:
+                        return(maybe, self._cache[maybe_country][maybe])
         return(None,None)
 
     def _add(self, address:str, coords:list, country:bool=False):
@@ -70,7 +107,9 @@ class ArticleGeoCoder:
             c=low_address.split(',')[-1]
             if c not in self._cache:
                 self._cache[c]={}
+                self._cacheFV[c]={}
             self._cache[c][low_address]=coords[:]
+            self._cacheFV[c][low_address]=_computeFV(low_address)
 
     def add_authors_location_inplace(self, G:nx.Graph):
         """

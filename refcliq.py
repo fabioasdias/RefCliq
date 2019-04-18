@@ -34,7 +34,7 @@ if __name__ == '__main__':
     parser.add_option("-o", "--output_file",
                     action="store", type="string", 
                     help="Output file to save, defaults to 'clusters.json'.",
-                    dest="output_file",default='clusters.json')
+                    dest="output_file",default='clusters1.json')
     parser.add_option("-g", "--geocode",
                     action="store_true",
                     help="Geocode the citing papers using Nominatim public servers, limited to 1 request/second.",
@@ -42,9 +42,13 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     if len(args)==0:
-        print('\nNo input files!\n')
-        parser.print_help()
-        exit(-1)
+        from glob import glob
+        args=glob('bib/guru_European*')
+        # print('\nNo input files!\n')
+        # parser.print_help()
+        # exit(-1)
+
+    options.geocode=True
 
     if options.geocode==False:
         print("\n\nNOT computing geographic coordinates for citing papers!\nPass -g/--geocode to enable geocoding.\n")
@@ -64,7 +68,7 @@ if __name__ == '__main__':
     if exists(checkpoint_cocn):
         co_citation_network=nx.read_gpickle(checkpoint_cocn)
     else:
-        co_citation_network=citation_network.cocitation()
+        co_citation_network=citation_network.cocitation(count_label="count", copy_data=False)
         nx.write_gpickle(co_citation_network, checkpoint_cocn)
 
 
@@ -97,7 +101,7 @@ if __name__ == '__main__':
 
     # graphs={}
 
-    print('Per cluster analysis/data (centrality, keywords)')
+    print('Per cluster analysis/data (centrality)')
     for p in tqdm(parts):
         subgraph = co_citation_network.subgraph(parts[p])
         centrality = nx.degree_centrality(subgraph)
@@ -114,13 +118,23 @@ if __name__ == '__main__':
     # output['graphs'] = graphs
 
     articles={}
-    for n in citation_network:
+    done={}
+    for n in citation_network.nodes():
+        if n in done:
+            print("!!!",n)
+        done[n]=True
         articles[n] = citation_network.node[n]['data']
         articles[n]['cites_this']=[p for p in citation_network.predecessors(n)]
         articles[n]['cited_count']=len(articles[n]['cites_this'])
         articles[n]['references']=[p for p in citation_network.successors(n)]
         articles[n]['reference_count']=len(articles[n]['references'])
-        articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
+        try:
+            articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
+        except:
+            print(n,articles[n],citation_network.node[n]['data'])
+            print(articles[n]['authors'])
+            input('.')
+            raise
     output['articles']=articles
 
     outName=options.output_file

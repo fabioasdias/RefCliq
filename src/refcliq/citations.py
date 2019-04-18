@@ -13,15 +13,41 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import snowball
 
 from src.refcliq.geocoding import ArticleGeoCoder
-from src.refcliq.textprocessing import tokens_from_sentence
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from scipy.sparse import coo_matrix
 
 from os.path import exists
 import pickle
+from string import punctuation
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords 
+from nltk import download
+from nltk.stem import snowball
+import networkx as nx
+from tqdm import tqdm
 
+download('stopwords')
+download('punkt')
 download('wordnet')
+
+stemmer = snowball.EnglishStemmer()
+remove_punct=str.maketrans('', '', punctuation)
+
+def tokens_from_sentence(sentence:str, remove_duplicates:bool=True)->list:
+    """
+      Returns a list of "important" words in a sentence.
+      Only works in English but returned tokens may not be proper English.
+    """
+    stop_words = stopwords.words('english')    
+    words=[word.translate(remove_punct).lower() for word in word_tokenize(sentence)]
+    words=[stemmer.stem(word) for word in words if (word not in stop_words) and (word!='')]
+    if remove_duplicates:
+      return(list(set(words)))
+    else:
+      return(words)
+
+
 
 #https://medium.com/analytics-vidhya/automated-keyword-extraction-from-articles-using-nlp-bfd864f41b34
 def sort_coo(coo_matrix):
@@ -36,13 +62,16 @@ def extract_topn_from_vector(feature_names, sorted_items, topn=10):
     
     # word index and corresponding tf-idf score
     for idx, score in sorted_items:
-        #do not add keywords that are contained in other keywords: sao paulo, sao, paulo. Might screw up if sao gets in before...
+        #do not add keywords that are contained in other keywords: sao paulo, sao, paulo. 
         skip=False
-        for keywords in feature_vals:
+        for i,keywords in enumerate(feature_vals):
             for already in keywords.split():
                 for toAdd in feature_names[idx].split():
                     if toAdd in already:
                         skip=True
+                        #let's keep the longuest keyword
+                        if len(feature_vals[i]) < len(feature_names[idx]):
+                            feature_vals[i] = feature_names[idx]
         if not skip:
             #keep track of feature name and its corresponding score
             score_vals.append(round(score, 6))
@@ -68,9 +97,7 @@ def _merge_keywords(keywords:list, how_many_works:int)->list:
             merged[k]+=v
     return([(k,merged[k]/how_many_works) for k in merged])
 
-
-
-
+# @profile
 def same_article(a1:dict, a2:dict)->bool:
     """
     Tests if two articles are the same based on their info. 
@@ -78,9 +105,9 @@ def same_article(a1:dict, a2:dict)->bool:
     Uses fuzzy string matching and the Person structure from pybtex.
     """
 
-    usefulFields=list(set([k for k in a1 if a1[k]]).intersection(set([k for k in a2 if a2[k]])))
+    # usefulFields=list(set([k for k in a1 if a1[k]]).intersection(set([k for k in a2 if a2[k]])))
 
-    if 'year' in usefulFields:
+    if ('year' in a1) and ('year' in a2):
         if (a1['year']!=a2['year']):
             return(False)
 
@@ -96,12 +123,12 @@ def same_article(a1:dict, a2:dict)->bool:
     if (L1!=1) and (L2!=1) and (L1!=L2):
         return(False)
     
-    for i in range(min([L1,L2])):
-        if (ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80) and (ratio(' '.join(a1['authors'][i].last_names),' '.join(a2['authors'][i].last_names))<=80):
+    for field in ['title', 'journal', 'page', 'vol']:
+        if (field in a1) and (field in a2) and (ratio(a1[field],a2[field])<=80):
             return(False)
 
-    for field in ['title', 'journal', 'page', 'vol']:
-        if (field in usefulFields) and (ratio(a1[field],a2[field])<=80):
+    for i in range(min([L1,L2])):
+        if (ratio(str(a1['authors'][i]),str(a2['authors'][i]))<=80) and (ratio(' '.join(a1['authors'][i].last_names),' '.join(a2['authors'][i].last_names))<=80):
             return(False)
 
     return(True)
@@ -110,11 +137,11 @@ class CitationNetwork(nx.DiGraph):
     def __init__(self, articles:list=None, checkpoint_prefix:str='chk', geocode:bool=True):
         nx.DiGraph.__init__(self)
         # self._G=nx.DiGraph() #the network
-        self._year={'None':[]}        #indexes
-        self._authors={1:[]}
-        self._journal={0:[]}
-        self._title={0:[]}
-        self._authorName={0:[]} #None might be a part of a name
+        self._year={'None':set()}        #indexes
+        self._authors={1:set()}
+        self._journal={0:set()}
+        self._title={0:set()}
+        self._authorName={0:set()} #None might be a part of a name
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
         if articles:
             self.build(articles, checkpoint_prefix, geocode)
@@ -217,7 +244,7 @@ class CitationNetwork(nx.DiGraph):
             ID='-'+str(len(self.nodes())) #flags as non-DOI
 
         self.add_node(ID)
-        self.node[ID]['data']=article
+        self.node[ID]['data']={**article}
 
         #store which index in the node to make update easier
         self.node[ID]['index']={}
@@ -229,28 +256,28 @@ class CitationNetwork(nx.DiGraph):
             yearIndex=article['year']
             self.node[ID]['index']['year']=yearIndex
             if yearIndex not in self._year:
-                self._year[yearIndex]=[]
-            self._year[yearIndex].append(ID)
+                self._year[yearIndex]=set()
+            self._year[yearIndex].add(ID)
         else:
             self.node[ID]['index']['year']='None'
-            self._year['None'].append(ID)
+            self._year['None'].add(ID)
 
         #authors is the only field that always exists.
         authorIndex=len(article['authors'])
         self.node[ID]['index']['authors']=authorIndex
         if authorIndex not in self._authors:
-            self._authors[authorIndex]=[]
-        self._authors[authorIndex].append(ID)
+            self._authors[authorIndex]=set()
+        self._authors[authorIndex].add(ID)
         
         if ('journal' in article) and (article['journal'] is not None):
             tokens=tokens_from_sentence(article['journal'])
             self.node[ID]['index']['journal']=tokens
             for token in tokens:
                 if token not in self._journal:
-                    self._journal[token]=[]
-                self._journal[token].append(ID)
+                    self._journal[token]=set()
+                self._journal[token].add(ID)
         else:
-            self._journal[0].append(ID)
+            self._journal[0].add(ID)
             self.node[ID]['index']['journal']=[0,]
 
         if ('title' in article) and (article['title'] is not None):
@@ -258,96 +285,89 @@ class CitationNetwork(nx.DiGraph):
             self.node[ID]['index']['title']=tokens
             for token in tokens:
                 if token not in self._title:
-                    self._title[token]=[]
-                self._title[token].append(ID)
+                    self._title[token]=set()
+                self._title[token].add(ID)
         else:
-            self._title[0].append(ID)
+            self._title[0].add(ID)
             self.node[ID]['index']['title']=[0,]
 
         if ('authors' in article) and len(article['authors'])>0:
-            self.node[ID]['index']['name']=[]
+            self.node[ID]['index']['name']=set()
             for author in article['authors']:
                 for name in author.last_names:
                     token=name.lower()
-                    self.node[ID]['index']['name'].append(token)
+                    self.node[ID]['index']['name'].add(token)
                     if token not in self._authorName:
-                        self._authorName[token]=[]
-                    self._authorName[token].append(ID)
+                        self._authorName[token]=set()
+                    self._authorName[token].add(ID)
         else:#no authors
-            self._authorName[0].append(ID)
+            self._authorName[0].add(ID)
             self.node[ID]['index']['name']=[0,]
         return(ID)
-
+    # @profile
     def _find_article_no_doi(self, article:dict):
         """
         Finds the article without using the DOI
         """
         fields=[k for k in article if (article[k])]        
 
-        possibles_year=self._year['None'][:]
+        possibles_year=self._year['None'].copy()
         if ('year' in fields) and (article['year'] in self._year):
-            possibles_year.extend(self._year[article['year']][:])
+            possibles_year=possibles_year.union(self._year[article['year']])
         if not possibles_year:
             return(None)
-        possibles_year=set(possibles_year)
 
-        possibles_authors=self._authors[1][:]
+        possibles_authors=self._authors[1].intersection(possibles_year)
         nAuthors=len(article['authors'])
         if (nAuthors!=1) and (nAuthors in self._authors):
-            possibles_authors.extend(self._authors[nAuthors][:])
-        if not possibles_authors:
-            return(None)        
-        possibles_authors=set(possibles_authors)
-
+            possibles_authors = possibles_authors.union(self._authors[nAuthors])
         possibles=possibles_authors.intersection(possibles_year)
         if not possibles:
             return(None)
 
-        if ('journal' in fields):
-            possibles_journal=[]
-            tokens=tokens_from_sentence(article['journal'])
-            for token in tokens:
-                if token in self._journal:
-                    possibles_journal.extend(self._journal[token][:])
-
-            #if we didn't find anything, dont filter by it
-            if possibles_journal:
-                possibles_journal.extend(self._journal[0][:])
-                possibles_journal=set(possibles_journal)
-                possibles=possibles.intersection(possibles_journal)
-                if not possibles:
-                    return(None)
-
         if ('title' in fields):
-            possibles_title=[]
+            possibles_title=set()
             tokens=tokens_from_sentence(article['title'])
             for token in tokens:
                 if token in self._title:
-                    possibles_title.extend(self._title[token][:])
+                    possibles_title = possibles_title.union(self._title[token])
 
             #if we didn't find anything, dont filter by it
             if possibles_title:
-                possibles_title.extend(self._title[0][:])
-                possibles_title=set(possibles_title)
+                possibles_title = possibles_title.union(self._title[0])
                 possibles=possibles.intersection(possibles_title)
                 if not possibles:
                     return(None)
 
         if ('authors' in fields):
-            possibles_authorName=[]
+            possibles_authorName=set()
             for author in article['authors']:
                 for name in author.last_names:
                     token=name.lower()
                     if token in self._authorName:
-                        possibles_authorName.extend(self._authorName[token][:])
+                        possibles_authorName = possibles_authorName.union(self._authorName[token])
 
             #if we didn't find anything, dont filter by it
             if possibles_authorName:
-                possibles_authorName.extend(self._authorName[0][:])
-                possibles_authorName=set(possibles_authorName)
-                possibles=possibles.intersection(possibles_authorName)
+                possibles_authorName = possibles_authorName.union(self._authorName[0])
+                possibles = possibles.intersection(possibles_authorName)
                 if not possibles:
                     return(None)
+
+        if ('journal' in fields):
+            possibles_journal=set()
+            tokens=tokens_from_sentence(article['journal'])
+            for token in tokens:
+                if token in self._journal:
+                    possibles_journal = possibles_journal.union(self._journal[token])
+
+            #if we didn't find anything, dont filter by it
+            if possibles_journal:
+                possibles_journal = possibles_journal.union(self._journal[0])
+                possibles=possibles.intersection(possibles_journal)
+                if not possibles:
+                    return(None)
+
 
         for n in possibles: 
             if same_article(self.node[n]['data'],article):
@@ -429,7 +449,6 @@ class CitationNetwork(nx.DiGraph):
             'some', 'likely', 'findings', 'but', 'results', 'among', 'has', 'how', 'which',
             'they', 'be', 'i', 'two', 'than', 'how', 'which', 'be', 'across', 'also', 'it', 'through', 'at']))
         lemmatizer=WordNetLemmatizer()
-        remove_punct = str.maketrans('', '', punctuation)
         useful_nodes=[n for n in self if ('data' in self.node[n]) and ('abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
 
         for n in useful_nodes:
