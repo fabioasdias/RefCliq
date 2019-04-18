@@ -7,6 +7,7 @@ from fuzzywuzzy.process import extractOne
 from time import sleep, monotonic
 from tqdm import tqdm
 import json
+import googlemaps
 
 CACHE='cache.json'
 
@@ -36,32 +37,38 @@ def _distanceFV(v1:list, v2:list)->float:
     return(ret/2.0)
 
 class ArticleGeoCoder:
-    def __init__(self):
-        self._cache={}
-        self._cacheFV={}
-        self._country_cache={}#otherwise "xxxx USA" returns "USA"'s entry from the cache...
-        self._parts_by_country={}
-        self._last_request=monotonic() #keeps track of the last time we used nominatim
-        self._nominatim_calls=0
+    def __init__(self,google_key:str=''):
+        self._cache = {}
+        if (google_key!=''):
+            self._gmaps = googlemaps.Client(key = google_key)
+        else:
+            self._gmaps = None
+
+        self._cacheFV = {}
+        self._country_cache = {}#otherwise "xxxx USA" returns "USA"'s entry from the cache...
+        self._parts_by_country = {}
+        self._last_request = monotonic() #keeps track of the last time we used nominatim
+        self._outgoing_calls = 0
         self._fails={} #Used to avoid repeatedly asking the same thing (leics, england). 
                         #this state is not saved (it might get updated).
         if exists(CACHE):
             with open(CACHE,'r') as fin:
                 data=json.load(fin)
                 self._cache=data['cache']
-                if ('fv' not in data): #calculate the FV
-                    for c in self._cache:
-                        self._cacheFV[c]={}
-                        for ad in self._cache[c]:
-                            self._cacheFV[c][ad]=_computeFV(ad)
-                else:
-                    self._cacheFV=data['fv']
+                # if ('fv' not in data): #calculate the FV
+                for c in self._cache:
+                    self._cacheFV[c]={}
+                    for ad in self._cache[c]:
+                        self._cacheFV[c][ad]=_computeFV(ad)
+                # else:
+                #     self._cacheFV=data['fv']
 
                 self._parts_by_country=data['parts']
                 self._country_cache=data['country']
     
     def _save_state(self):
-        to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country, 'fv':self._cacheFV}
+        #'fv':self._cacheFV
+        to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country}
         with open('cache.json','w') as fout:
             json.dump(to_save, fout)
     # @profile
@@ -121,6 +128,7 @@ class ArticleGeoCoder:
         for n in tqdm(G):
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
                 G.node[n]['data']['geo'] = self._get_coordinates(G.node[n]['data']['Affiliation'])
+                G.node[n]['data']['countries']=[x['country'] for x in G.node[n]['data']['geo'] ]
         return(G)
 
     def _nominatim(self, address:str)->list:
@@ -136,8 +144,8 @@ class ArticleGeoCoder:
         #if we tried that in this run and it failed, don't try again
         if (address not in self._fails):
             res=geocoder.osm(address)#, url='http://192.168.2.47/nominatim/')
-            # print('osm req', address, self._nominatim_calls)
-            self._nominatim_calls += 1
+            # print('osm req', address, self._outgoing_calls)
+            self._outgoing_calls += 1
             self._last_request = monotonic()
         else:
             return(None)
@@ -147,15 +155,32 @@ class ArticleGeoCoder:
         else:
             self._fails[address]=True #dict is faster than list
             return(None)
-
     
-    def _lookup(self, full_address:str)->(list,list,str):
+    def _google(self, address:str)->list:
+        """
+            Queries google's geocoding service for the address.
+            Limited to 50 queries per second. Keys are necessary.
+            Returns (x,y) or None if not found
+        """
+        delta = monotonic() - self._last_request
+        if delta <= (1/50):
+            sleep((1/50)-delta)
+        if (address not in self._fails):
+            res = self._gmaps.geocode(address)
+            self._outgoing_calls += 1
+            self._last_request = monotonic()
+
+        if (res is not None) and len(res)>0:
+            return([res[0]['geometry']['location']['lng'],res[0]['geometry']['location']['lat']])
+    
+    
+    def _lookup(self, full_address:str)->list:
         """
             Checks one address against the cache, get from OSM/Nominatim and adds to the cache if necessary.
             Returns:
-            - Accurate coordinates, if possible (city/address)
-            - Country representative coordinates otherwise,
-            - Name of the country.
+            - Accurate coordinates, if possible,: 'accurate'
+            - Country representative coordinates: 'generic'
+            - Name of the country: 'country'.
         """
         # print('---- Doing', full_address)
         #some US address don't bother saying "USA" at the end:
@@ -184,7 +209,10 @@ class ArticleGeoCoder:
             _,coords=self._cache_search(address,country=(i==1)) 
             if coords is None:
                 tried_addresses.append(address)
-                coords=self._nominatim(address)
+                if self._gmaps is not None:
+                    coords=self._google(address)
+                else:
+                    coords=self._nominatim(address)
                 cacheChanged = cacheChanged or (coords is not None)
 
             if (coords is None) and (i>1):

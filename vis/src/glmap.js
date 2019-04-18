@@ -62,7 +62,7 @@ let Map = class Map extends React.Component {
     
     this.map.addSource('points',{
       "type": "geojson",
-      "data": gj
+      "data": gj,
     });
     if (heatmap===false){
       this.map.addLayer({
@@ -81,7 +81,12 @@ let Map = class Map extends React.Component {
       this.map.addLayer({
         "id": "points",
         "type": "heatmap",
-        "source": 'points'
+        "source": 'points',
+        "paint":{
+          'heatmap-opacity' : 0.5,
+          'heatmap-weight' : ["log10", ["get", "count"]]
+        }
+
       });  
 
     }
@@ -103,7 +108,10 @@ let Map = class Map extends React.Component {
 
   componentWillReceiveProps(props){
     if ((props.geojson!==undefined)&&
-    ((this.props.heatmap!==props.heatmap)||(this.props.year!==props.year)||(this.props.selected!==props.selected))){
+    ((this.props.heatmap!==props.heatmap)||
+     (this.props.year!==props.year)||
+     (this.props.cummulative!==props.cummulative)||
+     (this.props.selected!==props.selected))){
       this.addLayer(props.geojson, props.heatmap);
     }
   }

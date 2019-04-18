@@ -47,10 +47,10 @@ function reprField(article, field){
 class CitingDetails extends Component {
   constructor(props){
     super(props);
-    this.state={geojson:undefined, citingList:[], fit:true, heatmap:false, year:'-1'};
+    this.state={geojson:undefined, citingList:[], cummulative: false, fit:true, heatmap:false, year:'-1'};
   }
 
-  updateGeoJSON(articles, selected, year){
+  updateGeoJSON(articles, selected, year, cummulative){
     let gj={type: "FeatureCollection", features:[]};
 
     for (let i=0;i<articles[selected].cites_this.length;i++){
@@ -63,7 +63,10 @@ class CitingDetails extends Component {
         continue; //WEIRD
       }
       for (let j=0; j<citing.geo.length; j++){
-        if ((year!=='-1')&&(year!==citing.year)){
+        if ((year!=='-1')&&
+        (((! cummulative)&&(year!==citing.year)) ||
+        ((cummulative) && (parseInt(citing.year,10) > parseInt(year,10)))
+        )){
           continue;
         }
 
@@ -86,6 +89,7 @@ class CitingDetails extends Component {
             year: citing.year,
             country: citing.geo[j].country,
             kind : kind,
+            count : citing.geo.length,
             title: citing.year,
             icon: (kind==='accurate')?"marker":"anchor"
           },
@@ -104,7 +108,7 @@ class CitingDetails extends Component {
       let citinglist=props.articles[props.selected].cites_this.slice().sort((a,b)=>{
         return(parseInt(props.articles[a].year,10)-parseInt(props.articles[b].year,10));
       });
-      let gj=this.updateGeoJSON(props.articles, props.selected, this.state.year);
+      let gj=this.updateGeoJSON(props.articles, props.selected, this.state.year, this.state.cummulative);
       let years=[];
       let yearsOp=[];
       for (let i=0;i<citinglist.length;i++){
@@ -155,7 +159,7 @@ class CitingDetails extends Component {
                 line = line +reprField(article,field);
             }
           }
-          if (j!==(field.length-1)){
+          if (j!==(fields.length-1)){
             line = line +'\t';
           }
         }
@@ -210,10 +214,11 @@ class CitingDetails extends Component {
             heatmap={this.state.heatmap}
             year={this.state.year}
             fit={this.state.fit}
+            cummulative={this.state.cummulative}
           />
         </div>:null}
 
-        <div className={this.state.geocoded?'citationlist':'citationlistExtended'}>
+        <div className={(this.props.geocoded)?'citationlist':'citationlistExtended'}>
           {((this.state.yearOptions!==undefined)&&(this.props.geocoded))?
           <div style={{display:'flex'}}>  
             <input 
@@ -237,7 +242,7 @@ class CitingDetails extends Component {
                 style={{marginLeft:'20px'}}
                 onChange={(e)=>{
                     let selYear=e.target.value;
-                    let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear);
+                    let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear, this.state.cummulative);
                     this.setState({geojson:gj, year:selYear});
                 }} >
                 {this.state.yearOptions.map( (e) => {
@@ -250,7 +255,16 @@ class CitingDetails extends Component {
                           </option>)
                 })}
               </select> 
-
+            <input 
+              name="cummulative" 
+              type="checkbox"              
+              defaultChecked={this.state.cummulative}
+              key={'cummulative'}
+              onChange={(e)=>{
+                let gj=this.updateGeoJSON(this.props.articles, this.props.selected, this.state.year, e.target.checked);
+                this.setState({geojson:gj, cummulative: e.target.checked});
+              }}
+            /> Cummulative
           </div>:null}
           {header}
           <div>

@@ -31,7 +31,8 @@ setuptools.setup(
         "tqdm",
         "titlecase",
         "fuzzywuzzy[speedup]",
-        "geocoder"
+        "geocoder",
+        "googlemaps"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

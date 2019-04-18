@@ -141,7 +141,7 @@ def same_article(a1:dict, a2:dict)->bool:
     return(True)
 
 class CitationNetwork(nx.DiGraph):
-    def __init__(self, articles:list=None, checkpoint_prefix:str='chk', geocode:bool=True):
+    def __init__(self, articles:list=None, checkpoint_prefix:str='chk', geocode:bool=True, google_key:str=''):
         nx.DiGraph.__init__(self)
         # self._G=nx.DiGraph() #the network
         self._year={'None':set()}        #indexes
@@ -151,7 +151,7 @@ class CitationNetwork(nx.DiGraph):
         self._authorName={0:set()} #None might be a part of a name
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
         if articles:
-            self.build(articles, checkpoint_prefix, geocode)
+            self.build(articles, checkpoint_prefix, geocode, google_key)
 
     def save(self, filename:str):
         """Saves the citation network structure to filename"""
@@ -165,13 +165,13 @@ class CitationNetwork(nx.DiGraph):
         self.__dict__.update(tmp_dict) 
     
 
-    def build(self, articles:list, checkpoint_prefix:str, geocode:bool=True):
+    def build(self, articles:list, checkpoint_prefix:str, geocode:bool=True, google_key:str=''):
         """
         Builds a directed graph to represent the citation network in the list of
         articles.
         """
         if geocode:
-            gc=ArticleGeoCoder()
+            gc=ArticleGeoCoder(google_key)
 
 
         checkpoint_all = checkpoint_prefix + '_bib_all.p'

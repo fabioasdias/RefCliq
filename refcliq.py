@@ -34,7 +34,11 @@ if __name__ == '__main__':
     parser.add_option("-o", "--output_file",
                     action="store", type="string", 
                     help="Output file to save, defaults to 'clusters.json'.",
-                    dest="output_file",default='clusters1.json')
+                    dest="output_file",default='clusters.json')
+    parser.add_option("-k", "--google-key",
+                    action="store", type="string", 
+                    help="Google maps API key.",
+                    dest="google_key",default='')
     parser.add_option("-g", "--geocode",
                     action="store_true",
                     help="Geocode the citing papers using Nominatim public servers, limited to 1 request/second.",
@@ -42,13 +46,14 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     if len(args)==0:
-        from glob import glob
-        args=glob('bib/guru_European*')
-        # print('\nNo input files!\n')
-        # parser.print_help()
-        # exit(-1)
+        # from glob import glob
+        # args=glob('bib/guru_European*')
+        print('\nNo input files!\n')
+        parser.print_help()
+        exit(-1)
 
     # options.geocode=True
+    # options.google_key=""
 
     if options.geocode==False:
         print("\n\nNOT computing geographic coordinates for citing papers!\nPass -g/--geocode to enable geocoding.\n")
@@ -58,7 +63,7 @@ if __name__ == '__main__':
         citation_network=CitationNetwork()
         citation_network.load(checkpoint_cn)
     else:
-        citation_network=CitationNetwork(import_bibs(args), checkpoint_prefix=options.output_file, geocode=options.geocode)    
+        citation_network=CitationNetwork(import_bibs(args), checkpoint_prefix=options.output_file, geocode=options.geocode, google_key=options.google_key)    
         citation_network.compute_keywords()
         citation_network.save(checkpoint_cn)
 
