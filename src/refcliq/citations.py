@@ -19,13 +19,6 @@ from scipy.sparse import coo_matrix
 
 from os.path import exists
 import pickle
-from string import punctuation
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords 
-from nltk import download
-from nltk.stem import snowball
-import networkx as nx
-from tqdm import tqdm
 
 download('stopwords')
 download('punkt')
@@ -61,24 +54,38 @@ def extract_topn_from_vector(feature_names, sorted_items, topn=10):
     feature_vals = []
     
     # word index and corresponding tf-idf score
+
+    to_remove=set()
     for idx, score in sorted_items:
         #do not add keywords that are contained in other keywords: sao paulo, sao, paulo. 
         skip=False
+        #we already added that
+
         for i,keywords in enumerate(feature_vals):
             for already in keywords.split():
                 for toAdd in feature_names[idx].split():
                     if toAdd in already:
                         skip=True
-                        #let's keep the longuest keyword
+                        #let's keep the longest keyword
                         if len(feature_vals[i]) < len(feature_names[idx]):
                             feature_vals[i] = feature_names[idx]
-        if not skip:
-            #keep track of feature name and its corresponding score
+
+        if not skip and(feature_names[idx] not in feature_vals):
             score_vals.append(round(score, 6))
             feature_vals.append(feature_names[idx])
-            if len(score_vals)==topn:
+
+            for i in range(len(feature_vals)):
+                for j in range(i+1,len(feature_vals)):
+                    if feature_vals[i] == feature_vals[j]:
+                        score_vals[i]+=score_vals[j]
+                        to_remove.add(j)
+            if (len(score_vals)-len(to_remove))==topn:
                 break
- 
+
+    for j in sorted(to_remove,reverse=True):
+        del(feature_vals[j])
+        del(score_vals[j])
+
     #create a tuples of feature,score
     results = zip(feature_vals,score_vals)
     
@@ -434,19 +441,19 @@ class CitationNetwork(nx.DiGraph):
         corpus=[]
         stop_words = list(set(stopwords.words('english')+['do', 'and', 'among', 'findings', 'is', 'in', 'results', 'an', 'as', 'are', 'only', 'number',
             'have', 'using', 'research', 'find', 'from', 'for', 'to', 'with', 'than', 'since', 'most',
-            'also', 'which', 'between', 'has', 'more', 'be', 'we', 'that', 'but', 'it', 'how',
-            'they', 'not', 'article', 'on', 'data', 'by', 'a', 'both', 'this', 'of', 'studies', 'lens', 'analysis',
-            'their', 'these', 'social', 'the', 'or', 'may', 'whether', 'them'', only',
-            'implication', 'our', 'less', 'who', 'all', 'based', 'less', 'was',
+            'also', 'which', 'between', 'has', 'more', 'be', 'we', 'that', 'but', 'it', 'how', 'approaches', 'approach',
+            'they', 'not', 'article', 'on', 'data', 'by', 'a', 'both', 'this', 'of', 'studies', 'lens', 'analysis', 'take', 'took',
+            'their', 'these', 'social', 'the', 'or', 'may', 'whether', 'them'', only', 'limit',
+            'implication', 'our', 'less', 'who', 'all', 'based', 'less', 'was', 'vital', 'taken', 'wide', 'view',
             'its', 'new', 'one', 'use', 'these', 'focus', 'result', 'test', 'property', 'properties',
-            'finding', 'relationship', 'different', 'their', 'more', 'between',
-            'article', 'study', 'paper', 'research', 'sample', 'effect', 'case', 'argue', 'three',
-            'affect', 'extent', 'when', 'implications', 'been', 'data', 'even', 'examine', 'toward',
-            'effects', 'analysis', 'into', 'support', 'show', 'within', 'what', 'were', 'per',
-            'associated', 'suggest', 'those', 'over', 'however', 'while', 'indicate', 'about',
-            'terms', 'processes', 'tactics', 'strategies', 'de',
-            'such', 'other', 'because', 'can', 'both', 'n', 'find', 'using', 'have', 'not',
-            'some', 'likely', 'findings', 'but', 'results', 'among', 'has', 'how', 'which',
+            'finding', 'relationship', 'different', 'their', 'more', 'between', 'supposed', 'another',
+            'article', 'study', 'paper', 'research', 'sample', 'effect', 'case', 'argue', 'three', 'upon',
+            'affect', 'extent', 'when', 'implications', 'been', 'data', 'even', 'examine', 'toward', 'particularly',
+            'effects', 'analysis', 'into', 'support', 'show', 'within', 'what', 'were', 'per', 'focusing', 'focus',
+            'associated', 'suggest', 'those', 'over', 'however', 'while', 'indicate', 'about', 'second', 'first', 
+            'terms', 'processes', 'tactics', 'strategies', 'de', 'involved', 'issues', 'successful', 'unfinished',
+            'such', 'other', 'because', 'can', 'both', 'n', 'find', 'using', 'have', 'not', 'role', 'rather',
+            'some', 'likely', 'findings', 'but', 'results', 'among', 'has', 'how', 'which', 'understand',
             'they', 'be', 'i', 'two', 'than', 'how', 'which', 'be', 'across', 'also', 'it', 'through', 'at']))
         lemmatizer=WordNetLemmatizer()
         useful_nodes=[n for n in self if ('data' in self.node[n]) and ('abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
