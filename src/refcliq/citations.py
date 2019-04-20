@@ -171,7 +171,7 @@ class CitationNetwork(nx.DiGraph):
         articles.
         """
         if geocode:
-            gc=ArticleGeoCoder(google_key)
+            geoCoder=ArticleGeoCoder(google_key)
 
 
         checkpoint_all = checkpoint_prefix + '_bib_all.p'
@@ -192,8 +192,8 @@ class CitationNetwork(nx.DiGraph):
                     citing=self.find(article)
                 self.save(checkpoint_bib_entries)
             if geocode:
-                gc.add_authors_location_inplace(self)
-                print('Nominatim calls ', gc._nominatim_calls)
+                geoCoder.add_authors_location_inplace(self)
+                print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
             self.save(checkpoint_geo)
 
         print('citation network - Cited-References')            

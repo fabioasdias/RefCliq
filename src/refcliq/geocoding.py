@@ -11,7 +11,8 @@ import googlemaps
 
 CACHE='cache.json'
 
-_addressPattern=re.compile(r"(?P<last>[\w]+),(?P<first>(([\w]+)| |([A-Z](\.)?))*)(\(.*?\))?,(?P<rest>[^.]+)", re.IGNORECASE)
+_addressPattern=re.compile(r"(([\w\- ]+,[\w\.\- ']*)(;?))*,(?P<rest>[^;]*?),(?P<country>[^\,]*?)\.", re.IGNORECASE)
+_initialsPattern=re.compile(r"(?: (?:[A-Z' ]\.?)+,)")    
 
 def _computeFV(s:str)->list:
     """
@@ -49,7 +50,7 @@ class ArticleGeoCoder:
         self._parts_by_country = {}
         self._last_request = monotonic() #keeps track of the last time we used nominatim
         self._outgoing_calls = 0
-        self._fails={} #Used to avoid repeatedly asking the same thing (leics, england). 
+        self._fails=set() #Used to avoid repeatedly asking the same thing (leics, england). 
                         #this state is not saved (it might get updated).
         if exists(CACHE):
             with open(CACHE,'r') as fin:
@@ -70,25 +71,26 @@ class ArticleGeoCoder:
         #'fv':self._cacheFV
         to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country}
         with open('cache.json','w') as fout:
-            json.dump(to_save, fout)
+            json.dump(to_save, fout, indent=4, sort_keys=True)
     # @profile
-    def _cache_search(self, full_address:str, country:bool=False, ratio:float=90)->list:
+    def _cache_search(self, full_address:str, country:str, ratio:float=90)->list:
         """
             Performs a cache search for the address. 
-            if country=True, ratio is ignored, only string matches count.
+            full_address = address without country
+            country = the country.
+            If address=='', ratio is ignored.
         """
-        if len(self._cache)>0:
-            address=full_address.lower()
-            if country:
-                return(address, self._country_cache.get(address))
+        if (full_address==''):
+            return(full_address, self._country_cache.get(full_address))
 
+        if len(self._cache) > 0:
+            address = full_address.lower()
             #hash checking is faster, so let's try accurate before fuzzy
-            c=address.split(',')[-1]
-            if (c in self._cache):
-                maybe_country=c
-                how_well=100
+            if (country in self._cache):
+                maybe_country = country
+                how_well = 100
             else:
-                maybe_country, how_well = extractOne(c, self._cache.keys())
+                maybe_country, how_well = extractOne(country, self._cache.keys())
 
             if (how_well>=ratio):
                 if (address in self._cache[maybe_country]):
@@ -103,20 +105,19 @@ class ArticleGeoCoder:
                         return(maybe, self._cache[maybe_country][maybe])
         return(None,None)
 
-    def _add(self, address:str, coords:list, country:bool=False):
+    def _add(self, address:str, country:str, coords:list):
         """
             Adds (address, coords) to the appropriate cache.
         """
-        low_address=address.lower()
-        if country:
-            self._country_cache[low_address]=coords[:]
+        if address=='':
+            self._country_cache[country]=coords[:]
         else:
-            c=low_address.split(',')[-1]
-            if c not in self._cache:
-                self._cache[c]={}
-                self._cacheFV[c]={}
-            self._cache[c][low_address]=coords[:]
-            self._cacheFV[c][low_address]=_computeFV(low_address)
+            if country not in self._cache:
+                self._cache[country]={}
+                self._cacheFV[country]={}
+            low_address=address.lower()
+            self._cache[country][low_address]=coords[:]
+            self._cacheFV[country][low_address]=_computeFV(low_address)
 
     def add_authors_location_inplace(self, G:nx.Graph):
         """
@@ -152,9 +153,9 @@ class ArticleGeoCoder:
 
         if res and res.ok:
             return([res.osm['x'], res.osm['y']])
-        else:
-            self._fails[address]=True #dict is faster than list
-            return(None)
+        
+        self._fails.add(address)
+        return(None)
     
     def _google(self, address:str)->list:
         """
@@ -163,6 +164,7 @@ class ArticleGeoCoder:
             Returns (x,y) or None if not found
         """
         delta = monotonic() - self._last_request
+        res = None
         if delta <= (1/50):
             sleep((1/50)-delta)
         if (address not in self._fails):
@@ -173,77 +175,105 @@ class ArticleGeoCoder:
         if (res is not None) and len(res)>0:
             return([res[0]['geometry']['location']['lng'],res[0]['geometry']['location']['lat']])
     
+        self._fails.add(address) 
+        return(None)
     
-    def _lookup(self, full_address:str)->list:
+    def _lookup(self, full_address:list)->list:
         """
-            Checks one address against the cache, get from OSM/Nominatim and adds to the cache if necessary.
+            Checks one address against the cache, get from Google maps or
+            OSM/Nominatim and adds to the cache if necessary.
+            Input ex: ["UofT, Toronto", "Canada"]
+
             Returns:
-            - Accurate coordinates, if possible,: 'accurate'
+            - Accurate coordinates, if possible: 'accurate'
             - Country representative coordinates: 'generic'
             - Name of the country: 'country'.
         """
         # print('---- Doing', full_address)
-        #some US address don't bother saying "USA" at the end:
-        last = full_address.split(' ')[-1]
-        if (len(last)==5) and (all([x.isdigit() for x in last])):
-            full_address=full_address+', USA'
 
-        #OSM doesn't understand PRC; USA addresses are usually ", CA 95000 USA" ; Rep of Georgia doesn't work either
-        address_to_use=full_address.replace('Peoples R','').replace(' USA',', USA').replace('Rep of','')
+        country = full_address[1].lower()
+        if full_address[0].startswith(','):
+            full_address[0] = full_address[0][1:].strip()
+
+        #NJ 08240 USA - Why bother with the standard comma before the country...
+        if ('usa' in country) and (len(country)>3):
+            full_address[0]=full_address[0]+', '+', '.join(country.split()[:-1])
+            country='usa'
+             
+        #some US address don't bother saying "USA" at the end,
+        #So it would get the ZIP as country
+        if (len(country)==5) and (all([x.isdigit() for x in country])):
+            country='usa'
+            #puts the zip back
+            full_address[0]=full_address[0]+' '+full_address[1]
         
         #removes all words with digits on them - without removing commas - "11215," 
-        all_vals=[' '.join([word for word in x.split() if not any([c.isdigit() for c in word])]) for x in address_to_use.split(',')]
-        country=all_vals[-1]
+        if self._gmaps is None:
+            all_vals=[' '.join([word for word in x.split() if not any([c.isdigit() for c in word])]) for x in full_address[0].split(',')]
+        else: #google plays better with numbers
+            all_vals=full_address[0].split(',')
+
 
         #keeps track of how many address parts works for this country to avoid unnecessary calls - Minimum 2.
-        if country.lower() not in self._parts_by_country:
-            self._parts_by_country[country.lower()]=max([2,len(all_vals)])
+        if country not in self._parts_by_country:
+            self._parts_by_country[country]=max([2,len(all_vals)])
 
-        i=min([len(all_vals),self._parts_by_country[country.lower()]])
-        tried_addresses=[]
-        accurate=None        
-        cacheChanged=False
-        while True:
-            vals=all_vals[-i:]
+        if self._gmaps is None:
+            i=min([len(all_vals),self._parts_by_country[country]])
+        else:
+            i=len(all_vals)
+
+        tried_addresses = []
+        accurate = None        
+        while i>0:
+            vals = all_vals[-i:]
             address=(', '.join(vals)).strip()
-            _,coords=self._cache_search(address,country=(i==1)) 
-            if coords is None:
+            _, accurate=self._cache_search(address, country) 
+            if accurate is not None:
+                break
+            else:
                 tried_addresses.append(address)
                 if self._gmaps is not None:
-                    coords=self._google(address)
+                    accurate=self._google(address+', '+country)
                 else:
-                    coords=self._nominatim(address)
-                cacheChanged = cacheChanged or (coords is not None)
+                    accurate=self._nominatim(address+', '+country)
 
-            if (coords is None) and (i>1):
+            if (accurate is not None):
+                self._parts_by_country[country]=min([i,self._parts_by_country[country]])                
+                for add in tried_addresses:
+                    self._add(add, country, accurate)
+                self._save_state()                    
+                break
+            else:
                 #not found, let's try with fewer parts
                 i-=1
-            else:
-                if i==1:      
-                    if coords:        
-                        self._add(address,coords,country=True)                           
-                    if (cacheChanged):
-                        self._save_state()
-                    return(accurate,coords,country)
-                else:
-                    for add in tried_addresses:
-                        # print('added', add)
-                        self._add(add,coords)
-                    accurate=coords[:]
-                    self._parts_by_country[country.lower()]=min([i,self._parts_by_country[country.lower()]])
-                    i=1
 
+        _, generic = self._cache_search('',country)
+        if (generic is None):
+            if self._gmaps is not None:
+                generic=self._google(country)
+            else:
+                generic=self._nominatim(country)
+            
+            if generic is not None:
+                self._add('', country, generic)
+                self._save_state()
+
+        return(accurate, generic, country)
 
     def _get_coordinates(self, affiliation:str):
-        aff=affiliation.replace('&','')
-        # print('+++ Affiliation',aff)
-        matches=_addressPattern.finditer(aff)
-        addresses=[entry.group('rest') for entry in matches]
+        aff = affiliation.replace('&','').replace("(Reprint Author)","").replace(' Jr.','').replace(' Sr.','')
+        aff = _initialsPattern.sub(', ',aff)
+        aff = aff.replace(",,",",")
+        matches = _addressPattern.finditer(aff)
+        addresses = [[entry.group('rest').strip(), entry.group('country').strip()] for entry in matches]
+
         if not addresses:
             return([])
 
         res=[]
         for address in addresses:
             accurate,country,name=self._lookup(address)
-            res.append({'accurate':accurate, 'generic':country, 'country':name})
+            if (name is not None):
+                res.append({'accurate':accurate, 'generic':country, 'country':name})
         return(res)

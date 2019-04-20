@@ -52,8 +52,8 @@ if __name__ == '__main__':
         parser.print_help()
         exit(-1)
 
-    # options.geocode=True
-    # options.google_key=""
+    options.geocode=True
+    options.google_key="AIzaSyCo7ZZjOJypI7Ge5Tie1_zNNvu6jk0YAvw"
 
     if options.geocode==False:
         print("\n\nNOT computing geographic coordinates for citing papers!\nPass -g/--geocode to enable geocoding.\n")
