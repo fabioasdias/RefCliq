@@ -81,7 +81,7 @@ class ArticleGeoCoder:
             If address=='', ratio is ignored.
         """
         if (full_address==''):
-            return(full_address, self._country_cache.get(full_address))
+            return(country, self._country_cache.get(country))
 
         if len(self._cache) > 0:
             address = full_address.lower()
@@ -169,6 +169,7 @@ class ArticleGeoCoder:
             sleep((1/50)-delta)
         if (address not in self._fails):
             res = self._gmaps.geocode(address)
+            print('google ', address)
             self._outgoing_calls += 1
             self._last_request = monotonic()
 
@@ -190,7 +191,7 @@ class ArticleGeoCoder:
             - Name of the country: 'country'.
         """
         # print('---- Doing', full_address)
-
+        
         country = full_address[1].lower()
         if full_address[0].startswith(','):
             full_address[0] = full_address[0][1:].strip()
@@ -206,7 +207,7 @@ class ArticleGeoCoder:
             country='usa'
             #puts the zip back
             full_address[0]=full_address[0]+' '+full_address[1]
-        
+
         #removes all words with digits on them - without removing commas - "11215," 
         if self._gmaps is None:
             all_vals=[' '.join([word for word in x.split() if not any([c.isdigit() for c in word])]) for x in full_address[0].split(',')]
@@ -233,6 +234,7 @@ class ArticleGeoCoder:
                 break
             else:
                 tried_addresses.append(address)
+                # print(address)
                 if self._gmaps is not None:
                     accurate=self._google(address+', '+country)
                 else:
@@ -265,14 +267,16 @@ class ArticleGeoCoder:
         aff = affiliation.replace('&','').replace("(Reprint Author)","").replace(' Jr.','').replace(' Sr.','')
         aff = _initialsPattern.sub(', ',aff)
         aff = aff.replace(",,",",")
+        print(aff)
         matches = _addressPattern.finditer(aff)
         addresses = [[entry.group('rest').strip(), entry.group('country').strip()] for entry in matches]
-
+        print('-')
         if not addresses:
             return([])
 
         res=[]
         for address in addresses:
+            print(address)
             accurate,country,name=self._lookup(address)
             if (name is not None):
                 res.append({'accurate':accurate, 'generic':country, 'country':name})

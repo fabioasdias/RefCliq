@@ -52,7 +52,6 @@ if __name__ == '__main__':
         parser.print_help()
         exit(-1)
 
-    options.geocode=True
     # options.google_key=""
 
     if options.geocode==False:
