@@ -193,6 +193,7 @@ class CitationNetwork(nx.DiGraph):
                 self.save(checkpoint_bib_entries)
             if geocode:
                 geoCoder.add_authors_location_inplace(self)
+                exit()
                 print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
             self.save(checkpoint_geo)
 

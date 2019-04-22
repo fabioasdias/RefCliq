@@ -13,6 +13,7 @@ CACHE='cache.json'
 
 _addressPattern=re.compile(r"(([\w\- ]+,[\w\.\- ']*)(;?))*,(?P<rest>[^;]*?),(?P<country>[^\,]*?)\.", re.IGNORECASE)
 _initialsPattern=re.compile(r"(?: (?:[A-Z' ]\.?)+,)")    
+_US=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 
 def _computeFV(s:str)->list:
     """
@@ -125,12 +126,65 @@ class ArticleGeoCoder:
             coordinates based from the 'Affiliation' bibtex field, if present.
             _Alters the data of G_.
         """
+
+        self._trees={}
         print('Getting coordinates for each author affiliation')
         for n in tqdm(G):
+            G.node[n]['data']['countries']=[]
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
-                G.node[n]['data']['geo'] = self._get_coordinates(G.node[n]['data']['Affiliation'])
-                G.node[n]['data']['countries']=[x['country'] for x in G.node[n]['data']['geo'] ]
+                aff = G.node[n]['data']['Affiliation']
+
+
+                to_do=[]
+
+                #weird case where all the affiliation is just one address, in caps, non-standard, for the US
+                if (aff.upper()==aff):
+
+                    vals = aff.split(',')
+                    last = vals[-1].strip()
+                    if (len(last)==2) or ((len(last)==3) and (last[2]=='.')) and (last[:2] in _US):
+                        to_do=[[', '.join(vals[-2:]).lower(), 'usa'],]
+
+
+                if not to_do:
+                    aff = aff.replace('&', '').replace("(Reprint Author)", "").replace(' Jr.', '').replace(' Sr.', '')
+                    aff = _initialsPattern.sub(', ', aff)
+                    aff = aff.replace(",,", ",").replace(", ,",",")
+                    matches = _addressPattern.finditer(aff)
+                    to_do=[[entry.group('rest').strip().lower(), entry.group('country').strip().lower()] for entry in matches]
+
+
+                for a, c in to_do:
+                    address = a[:]
+                    country = c[:]
+                    if address.startswith(','):
+                        address = address[1:].strip()
+
+                    #NJ 08240 USA - Why bother with the standard comma before the country...
+                    if ('usa' in country) and (len(country)>3):
+                        address = address +', '+', '.join(country.split()[:-1])
+                        country='usa'
+                        
+                    #some US address don't bother saying "USA" at the end,
+                    #So it would get the ZIP as country
+                    if ' ' in country:
+                        last = country.split()[-1]
+                        if ((len(last)==5) and (all([x.isdigit() for x in last]))) or ((len(country)==2) and (country.upper() in _US)):
+                            address = address+', '+country #puts the part of the address back
+                            country='usa'
+
+                    if (len(country.strip())==2):
+                        print(country)
+                    G.node[n]['data']['countries'].append(country)
+
         return(G)
+
+        # print('Getting coordinates for each author affiliation')
+        # for n in tqdm(G):
+        #     if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
+        #         G.node[n]['data']['geo'] = self._get_coordinates(G.node[n]['data']['Affiliation'])
+        #         G.node[n]['data']['countries']=[x['country'] for x in G.node[n]['data']['geo'] ]
+        # return(G)
 
     def _nominatim(self, address:str)->list:
         """
