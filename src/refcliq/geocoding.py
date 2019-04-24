@@ -4,15 +4,16 @@ from src.refcliq.util import cleanCurlyAround
 import re
 import networkx as nx
 from fuzzywuzzy.process import extractOne
+from fuzzywuzzy.fuzz import ratio
 from time import sleep, monotonic
 from tqdm import tqdm
 import json
 import googlemaps
+import spacy
+from titlecase import titlecase
 
 CACHE='cache.json'
 
-_addressPattern=re.compile(r"(([\w\- ]+,[\w\.\- ']*)(;?))*,(?P<rest>[^;]*?),(?P<country>[^\,]*?)\.", re.IGNORECASE)
-_initialsPattern=re.compile(r"(?: (?:[A-Z' ]\.?)+,)")    
 _US=['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
 
 def _computeFV(s:str)->list:
@@ -38,6 +39,59 @@ def _distanceFV(v1:list, v2:list)->float:
         ret+=abs(v1[i]-v2[i])
     return(ret/2.0)
 
+
+def _find(d:dict, k:str, T:int=75)->str:
+    """
+        Finds the key most similar to k in d. 
+        Returns none if no key is at least T similar (fuzzywuzzy ratio)
+    """
+
+    if k in d:
+        return(k)
+    if (k==''):
+        return(None)
+    ret=extractOne(k,d.keys(),score_cutoff=T)
+    if ret:
+        return(ret[0])
+    return(None)
+
+def _remove_numbers(s:str)->str:
+    """
+        Removes all continuous sequences of characters that contain numbers. 
+        Ex. 11215, F-93160, etc...
+    """
+    return(','.join([' '.join([word for word in x.split() if not any([c.isdigit() for c in word])]) for x in s.split(',')]).replace(',,',',').replace(',',', '))
+
+def _count_useful_parts(address_parts:list, google_result:dict, T:int=75)->int:
+    """
+        Determines how many address_parts are needed for city-level geocoding.
+    """
+    ret = 0
+    for a in address_parts:
+        found = False
+        for p in google_result["address_components"]:
+            if (ratio(a.lower(), p['long_name'].lower()) > T) or (ratio(a.lower(), p['short_name'].lower()) > T):
+                found = True
+                break
+        if found:
+            ret+=1
+
+    return(ret)
+
+def _filter_geocode(google_result:dict):
+    useful = set(['postal_town', 'administrative_area_level_1', 'administrative_area_level_2', 'country', 'locality'])
+
+    to_remove = []
+    for i,part in enumerate(google_result["address_components"]):
+        if len(set(part['types']).intersection(useful)) == 0:
+            to_remove.append(i)
+
+    for i in sorted(to_remove, reverse=True):
+        del(google_result["address_components"][i])
+
+    return(google_result)
+
+
 class ArticleGeoCoder:
     def __init__(self,google_key:str=''):
         self._cache = {}
@@ -46,79 +100,22 @@ class ArticleGeoCoder:
         else:
             self._gmaps = None
 
-        self._cacheFV = {}
-        self._country_cache = {}#otherwise "xxxx USA" returns "USA"'s entry from the cache...
-        self._parts_by_country = {}
+        #those always pose a problem
+        self._parts_by_country = {'peoples r china' : 3, 'United States' : 3, 'czech republic' : 2, 'ireland' : 2, 'norway': 2, 'italy': 2, 'finland':2}
         self._last_request = monotonic() #keeps track of the last time we used nominatim
         self._outgoing_calls = 0
-        self._fails=set() #Used to avoid repeatedly asking the same thing (leics, england). 
-                        #this state is not saved (it might get updated).
+
         if exists(CACHE):
             with open(CACHE,'r') as fin:
                 data=json.load(fin)
                 self._cache=data['cache']
-                # if ('fv' not in data): #calculate the FV
-                for c in self._cache:
-                    self._cacheFV[c]={}
-                    for ad in self._cache[c]:
-                        self._cacheFV[c][ad]=_computeFV(ad)
-                # else:
-                #     self._cacheFV=data['fv']
-
-                self._parts_by_country=data['parts']
-                self._country_cache=data['country']
+                self._parts_by_country.update(data['parts'])
     
     def _save_state(self):
         #'fv':self._cacheFV
-        to_save={'cache':self._cache,'country':self._country_cache,'parts':self._parts_by_country}
+        to_save={'cache':self._cache, 'parts': self._parts_by_country}
         with open('cache.json','w') as fout:
             json.dump(to_save, fout, indent=4, sort_keys=True)
-    # @profile
-    def _cache_search(self, full_address:str, country:str, ratio:float=90)->list:
-        """
-            Performs a cache search for the address. 
-            full_address = address without country
-            country = the country.
-            If address=='', ratio is ignored.
-        """
-        if (full_address==''):
-            return(country, self._country_cache.get(country))
-
-        if len(self._cache) > 0:
-            address = full_address.lower()
-            #hash checking is faster, so let's try accurate before fuzzy
-            if (country in self._cache):
-                maybe_country = country
-                how_well = 100
-            else:
-                maybe_country, how_well = extractOne(country, self._cache.keys())
-
-            if (how_well>=ratio):
-                if (address in self._cache[maybe_country]):
-                    return(address, self._cache[maybe_country][address])
-
-                fv = _computeFV(address)
-                to_look= [ad for ad in self._cacheFV[maybe_country] if _distanceFV(fv,self._cacheFV[maybe_country][ad])<0.25]
-
-                if to_look:
-                    maybe, how_well = extractOne(address, to_look)
-                    if how_well >= ratio:
-                        return(maybe, self._cache[maybe_country][maybe])
-        return(None,None)
-
-    def _add(self, address:str, country:str, coords:list):
-        """
-            Adds (address, coords) to the appropriate cache.
-        """
-        if address=='':
-            self._country_cache[country]=coords[:]
-        else:
-            if country not in self._cache:
-                self._cache[country]={}
-                self._cacheFV[country]={}
-            low_address=address.lower()
-            self._cache[country][low_address]=coords[:]
-            self._cacheFV[country][low_address]=_computeFV(low_address)
 
     def add_authors_location_inplace(self, G:nx.Graph):
         """
@@ -126,212 +123,165 @@ class ArticleGeoCoder:
             coordinates based from the 'Affiliation' bibtex field, if present.
             _Alters the data of G_.
         """
-
-        self._trees={}
+        nlp = spacy.load('en_core_web_sm')
+        trees={}
         print('Getting coordinates for each author affiliation')
         for n in tqdm(G):
             G.node[n]['data']['countries']=[]
+            G.node[n]['data']['coordinates']=[]
+            addresses=[]
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
-                aff = G.node[n]['data']['Affiliation']
+                aff = G.node[n]['data']['Affiliation'].replace('(Reprint Author)','')
+                doc = nlp(aff)
+                add = ''
+                for sent in doc.sents:
+                    if sent.text.endswith('.'):
+                        current = _remove_numbers((add+' '+sent.text).strip().replace('  ',' '))
+                        if current.endswith('.'):
+                            current = current[:-1]
+                        #special cases: NY 10012 USA / LOS ANGELES,CA.
+                        vals = [x.strip() for x in current.split(',')]
+                        if (len(vals[-1])==2) and vals[-1].upper() in _US: # ,CA.
+                            addresses.append([titlecase(vals[-2]),vals[-1],'United States'])
+                        elif (vals[-1].endswith(' USA')):
+                            addresses.append([titlecase(vals[-2]),vals[-1].split(' ')[0],'United States'])
+                        else:
+                            if len(vals)>3: #name, dept, etc
+                                addresses.append([titlecase(x) for x in vals[-3:]])
+                            else:
+                                addresses.append([titlecase(x) for x in vals])
+                        add = ''
+                    else:
+                        add = add + ' ' + sent.text
 
-
-                to_do=[]
-
-                #weird case where all the affiliation is just one address, in caps, non-standard, for the US
-                if (aff.upper()==aff):
-
-                    vals = aff.split(',')
-                    last = vals[-1].strip()
-                    if (len(last)==2) or ((len(last)==3) and (last[2]=='.')) and (last[:2] in _US):
-                        to_do=[[', '.join(vals[-2:]).lower(), 'usa'],]
-
-
-                if not to_do:
-                    aff = aff.replace('&', '').replace("(Reprint Author)", "").replace(' Jr.', '').replace(' Sr.', '')
-                    aff = _initialsPattern.sub(', ', aff)
-                    aff = aff.replace(",,", ",").replace(", ,",",")
-                    matches = _addressPattern.finditer(aff)
-                    to_do=[[entry.group('rest').strip().lower(), entry.group('country').strip().lower()] for entry in matches]
-
-
-                for a, c in to_do:
-                    address = a[:]
-                    country = c[:]
-                    if address.startswith(','):
-                        address = address[1:].strip()
-
-                    #NJ 08240 USA - Why bother with the standard comma before the country...
-                    if ('usa' in country) and (len(country)>3):
-                        address = address +', '+', '.join(country.split()[:-1])
-                        country='usa'
+                for vals in addresses:
+                    G.node[n]['data']['countries'].append(vals[-1])
+                    v =  [x.lower() for x in vals]
+                    if len(v) < 3:
+                        v = ['',]*(3-len(v)) + v
+                    # not really city / state / country, but it is easier to
+                    # code with names
+                    # there is probably a shorter way of doing this using defaultdicts
+                    country = _find(trees, v[-1])
+                    if country is None:
+                        country = v[-1]
+                        trees[country] = {}
                         
-                    #some US address don't bother saying "USA" at the end,
-                    #So it would get the ZIP as country
-                    if ' ' in country:
-                        last = country.split()[-1]
-                        if ((len(last)==5) and (all([x.isdigit() for x in last]))) or ((len(country)==2) and (country.upper() in _US)):
-                            address = address+', '+country #puts the part of the address back
-                            country='usa'
+                    state = _find(trees[country], v[-2])
+                    if state is None:
+                        state = v[-2]
+                        trees[country][state]={}
 
-                    if (len(country.strip())==2):
-                        print(country)
-                    G.node[n]['data']['countries'].append(country)
+                    city = _find(trees[country][state], v[-3])
+                    if city is None:
+                        city = v[-3]
+                        trees[country][state][city]=[]
+                    
+                    trees[country][state][city].append(n)
 
+        for country in trees:
+            cached = _find(self._parts_by_country, country)
+
+            if cached is None:
+                i = 0
+                j = 0
+                geo = []
+                while not geo:
+                    sample_state = list(trees[country].keys())[i]
+                    sample_city = list(trees[country][sample_state])[j]
+                    parts = [sample_city, sample_state, country]
+                    geo = self._google(parts)
+                    if j < len(trees[country][sample_state].keys()):
+                        j+=1
+                    else:
+                        j=0
+                        i+=1
+                        if i == len(trees[country]):
+                            to_use = 3 #didn't find anything, run all... very unlikely. Very.
+                if geo:                        
+                    self._parts_by_country[country] = _count_useful_parts(parts, geo)
+                    to_use = self._parts_by_country[country]
+            else:
+                to_use = self._parts_by_country[cached]
+
+
+            for state in trees[country]:
+                for city in trees[country][state]:
+                    parts = [city, state, country][-to_use:]
+                    parts = ['',]*(3-len(parts)) + parts
+                    geo = self._cache_search(parts)
+                    if geo is None:
+                        geo = self._google(parts)
+                        if not geo:
+                            continue
+                        self._cache_add(parts, geo)
+
+                    for n in trees[country][state][city]:
+                        G.node[n]['data']['countries'].append([geo['geometry']['location']['lng'], geo['geometry']['location']['lat']])
+                            
         return(G)
 
-        # print('Getting coordinates for each author affiliation')
-        # for n in tqdm(G):
-        #     if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
-        #         G.node[n]['data']['geo'] = self._get_coordinates(G.node[n]['data']['Affiliation'])
-        #         G.node[n]['data']['countries']=[x['country'] for x in G.node[n]['data']['geo'] ]
-        # return(G)
+    def _cache_search(self, address_parts: list):
+        vals = ['',]*(3-(len(address_parts))) + address_parts
 
-    def _nominatim(self, address:str)->list:
-        """
-            Queries nominatim's public server for the address.
-            Forcibly limited to 1 query per second.
-            Returns (x,y) or None if not found.
-        """
-        #we can only do one query per second on public nominatim
-        delta = monotonic() - self._last_request
-        if delta <= 1:
-            sleep(1-delta)
-        #if we tried that in this run and it failed, don't try again
-        if (address not in self._fails):
-            res=geocoder.osm(address)#, url='http://192.168.2.47/nominatim/')
-            # print('osm req', address, self._outgoing_calls)
-            self._outgoing_calls += 1
-            self._last_request = monotonic()
-        else:
+        country = _find(self._cache, vals[-1])
+        if country is None:
             return(None)
 
-        if res and res.ok:
-            return([res.osm['x'], res.osm['y']])
+        state = _find(self._cache[country], vals[-2])        
+        if state is None:
+            return(None)
+
+        city = _find(self._cache[country][state], vals[-3])
+        if city is None:
+            return(None)
+            
+        return(self._cache[country][state][city])
+
+
+    def _cache_add(self, address_parts: list, google_geocode: dict):
+        vals = ['',]*(3-(len(address_parts))) + address_parts
+
+        country = _find(self._cache, vals[-1])
+        if country is None:
+            country = vals[-1]
+            self._cache[country]={}
         
-        self._fails.add(address)
-        return(None)
-    
-    def _google(self, address:str)->list:
+        state = _find(self._cache[country], vals[-2])
+        if state is None:
+            state = vals[-2]
+            self._cache[country][state] = {}
+
+        city = _find(self._cache[country][state], vals[-3])
+        if city is None:
+            city = vals[-3]
+
+        self._cache[country][state][city] = google_geocode
+        self._save_state()
+
+
+    def _google(self, address_parts: list)->list:
         """
             Queries google's geocoding service for the address.
-            Limited to 50 queries per second. Keys are necessary.
-            Returns (x,y) or None if not found
+            Limited to 50 queries per second. A key is necessary.
+            Returns (lng,lat) for the point.
         """
+        minTime= 1/50
         delta = monotonic() - self._last_request
         res = None
-        if delta <= (1/50):
-            sleep((1/50)-delta)
-        if (address not in self._fails):
-            res = self._gmaps.geocode(address)
-            print('google ', address)
-            self._outgoing_calls += 1
-            self._last_request = monotonic()
+        address = ', '.join([x for x in address_parts if x!=''])
+        if delta <= minTime:
+            sleep(minTime-delta)
 
-        if (res is not None) and len(res)>0:
-            return([res[0]['geometry']['location']['lng'],res[0]['geometry']['location']['lat']])
-    
-        self._fails.add(address) 
-        return(None)
-    
-    def _lookup(self, full_address:list)->list:
-        """
-            Checks one address against the cache, get from Google maps or
-            OSM/Nominatim and adds to the cache if necessary.
-            Input ex: ["UofT, Toronto", "Canada"]
+        res = self._gmaps.geocode(address)
+        # with open('testing.json','r') as fin:
+        #     res = json.load(fin)
+        if res:
+            res = _filter_geocode(res[0])
 
-            Returns:
-            - Accurate coordinates, if possible: 'accurate'
-            - Country representative coordinates: 'generic'
-            - Name of the country: 'country'.
-        """
-        # print('---- Doing', full_address)
-        
-        country = full_address[1].lower()
-        if full_address[0].startswith(','):
-            full_address[0] = full_address[0][1:].strip()
-
-        #NJ 08240 USA - Why bother with the standard comma before the country...
-        if ('usa' in country) and (len(country)>3):
-            full_address[0]=full_address[0]+', '+', '.join(country.split()[:-1])
-            country='usa'
-             
-        #some US address don't bother saying "USA" at the end,
-        #So it would get the ZIP as country
-        if (len(country)==5) and (all([x.isdigit() for x in country])):
-            country='usa'
-            #puts the zip back
-            full_address[0]=full_address[0]+' '+full_address[1]
-
-        #removes all words with digits on them - without removing commas - "11215," 
-        if self._gmaps is None:
-            all_vals=[' '.join([word for word in x.split() if not any([c.isdigit() for c in word])]) for x in full_address[0].split(',')]
-        else: #google plays better with numbers
-            all_vals=full_address[0].split(',')
-
-
-        #keeps track of how many address parts works for this country to avoid unnecessary calls - Minimum 2.
-        if country not in self._parts_by_country:
-            self._parts_by_country[country]=max([2,len(all_vals)])
-
-        if self._gmaps is None:
-            i=min([len(all_vals),self._parts_by_country[country]])
-        else:
-            i=len(all_vals)
-
-        tried_addresses = []
-        accurate = None        
-        while i>0:
-            vals = all_vals[-i:]
-            address=(', '.join(vals)).strip()
-            _, accurate=self._cache_search(address, country) 
-            if accurate is not None:
-                break
-            else:
-                tried_addresses.append(address)
-                # print(address)
-                if self._gmaps is not None:
-                    accurate=self._google(address+', '+country)
-                else:
-                    accurate=self._nominatim(address+', '+country)
-
-            if (accurate is not None):
-                self._parts_by_country[country]=min([i,self._parts_by_country[country]])                
-                for add in tried_addresses:
-                    self._add(add, country, accurate)
-                self._save_state()                    
-                break
-            else:
-                #not found, let's try with fewer parts
-                i-=1
-
-        _, generic = self._cache_search('',country)
-        if (generic is None):
-            if self._gmaps is not None:
-                generic=self._google(country)
-            else:
-                generic=self._nominatim(country)
-            
-            if generic is not None:
-                self._add('', country, generic)
-                self._save_state()
-
-        return(accurate, generic, country)
-
-    def _get_coordinates(self, affiliation:str):
-        aff = affiliation.replace('&','').replace("(Reprint Author)","").replace(' Jr.','').replace(' Sr.','')
-        aff = _initialsPattern.sub(', ',aff)
-        aff = aff.replace(",,",",")
-        print(aff)
-        matches = _addressPattern.finditer(aff)
-        addresses = [[entry.group('rest').strip(), entry.group('country').strip()] for entry in matches]
-        print('-')
-        if not addresses:
-            return([])
-
-        res=[]
-        for address in addresses:
-            print(address)
-            accurate,country,name=self._lookup(address)
-            if (name is not None):
-                res.append({'accurate':accurate, 'generic':country, 'country':name})
+        print('google ', address)
+        self._outgoing_calls += 1
+        self._last_request = monotonic()
         return(res)
+
+    

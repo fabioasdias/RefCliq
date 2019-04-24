@@ -32,6 +32,7 @@ setuptools.setup(
         "titlecase",
         "fuzzywuzzy[speedup]",
         "geocoder",
+        "spacy",
         "googlemaps"
     ],
     classifiers=[
