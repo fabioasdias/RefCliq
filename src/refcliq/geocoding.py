@@ -125,7 +125,7 @@ class ArticleGeoCoder:
         """
         nlp = spacy.load('en_core_web_sm')
         trees={}
-        print('Getting coordinates for each author affiliation')
+        print('Compiling addresses')
         for n in tqdm(G):
             G.node[n]['data']['countries']=[]
             G.node[n]['data']['coordinates']=[]
@@ -178,8 +178,8 @@ class ArticleGeoCoder:
                         trees[country][state][city]=[]
                     
                     trees[country][state][city].append(n)
-
-        for country in trees:
+        print('Getting coordinates')
+        for country in tqdm(trees):
             cached = _find(self._parts_by_country, country)
 
             if cached is None:
