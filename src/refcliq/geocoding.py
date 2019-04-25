@@ -1,4 +1,3 @@
-import geocoder
 from os.path import exists
 from src.refcliq.util import cleanCurlyAround
 import re
@@ -131,7 +130,7 @@ class ArticleGeoCoder:
             G.node[n]['data']['coordinates']=[]
             addresses=[]
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation'])>0):
-                aff = G.node[n]['data']['Affiliation'].replace('(Reprint Author)','')
+                aff = G.node[n]['data']['Affiliation'].replace('(Reprint Author)','').replace(".,",',').replace("'",'') #O'lastname / Jesusm. / Redone.  mess sentence identification
                 doc = nlp(aff)
                 add = ''
                 for sent in doc.sents:
@@ -156,28 +155,30 @@ class ArticleGeoCoder:
 
                 for vals in addresses:
                     G.node[n]['data']['countries'].append(vals[-1])
-                    v =  [x.lower() for x in vals]
-                    if len(v) < 3:
-                        v = ['',]*(3-len(v)) + v
-                    # not really city / state / country, but it is easier to
-                    # code with names
-                    # there is probably a shorter way of doing this using defaultdicts
-                    country = _find(trees, v[-1])
-                    if country is None:
-                        country = v[-1]
-                        trees[country] = {}
-                        
-                    state = _find(trees[country], v[-2])
-                    if state is None:
-                        state = v[-2]
-                        trees[country][state]={}
+                    if self._gmaps is not None:
+                        v =  [x.lower() for x in vals]
+                        if len(v) < 3:
+                            v = ['',]*(3-len(v)) + v
+                        # not really city / state / country, but it is easier to
+                        # code with names
+                        # there is probably a shorter way of doing this using defaultdicts
+                        country = _find(trees, v[-1])
+                        if country is None:
+                            country = v[-1]
+                            trees[country] = {}
+                            
+                        state = _find(trees[country], v[-2])
+                        if state is None:
+                            state = v[-2]
+                            trees[country][state]={}
 
-                    city = _find(trees[country][state], v[-3])
-                    if city is None:
-                        city = v[-3]
-                        trees[country][state][city]=[]
-                    
-                    trees[country][state][city].append(n)
+                        city = _find(trees[country][state], v[-3])
+                        if city is None:
+                            city = v[-3]
+                            trees[country][state][city]=[]
+                        
+                        trees[country][state][city].append(n)
+
         print('Getting coordinates')
         for country in tqdm(trees):
             cached = _find(self._parts_by_country, country)
@@ -187,23 +188,30 @@ class ArticleGeoCoder:
                 j = 0
                 geo = []
                 while not geo:
-                    sample_state = list(trees[country].keys())[i]
-                    sample_city = list(trees[country][sample_state])[j]
-                    parts = [sample_city, sample_state, country]
-                    geo = self._google(parts)
-                    if j < len(trees[country][sample_state].keys()):
+                    try:
+                        sample_state = list(trees[country].keys())[i]
+                        sample_city = list(trees[country][sample_state])[j]
+                        parts = [sample_city, sample_state, country]
+                        geo = self._google(parts)
                         j+=1
-                    else:
-                        j=0
-                        i+=1
-                        if i == len(trees[country]):
-                            to_use = 3 #didn't find anything, run all... very unlikely. Very.
+                        if j == len(trees[country][sample_state].keys()):                        
+                            j=0
+                            i+=1
+                            if i == len(trees[country]):
+                                to_use = 3 #didn't find anything, run all... very unlikely. Very.
+                    except:
+                        print('Could not find anything using "{0}" as a country, please check the affiliation field.'.format(country))
+                        print('(This can happen when a author name has a dot at the end of a non-abreviation.)')
+                        print(trees[country])
+                        raise
                 if geo:                        
                     self._parts_by_country[country] = _count_useful_parts(parts, geo)
-                    to_use = self._parts_by_country[country]
-            else:
-                to_use = self._parts_by_country[cached]
+                    self._save_state()
 
+
+        for country in tqdm(trees):
+            cached = _find(self._parts_by_country, country)
+            to_use = self._parts_by_country[cached]    
 
             for state in trees[country]:
                 for city in trees[country][state]:

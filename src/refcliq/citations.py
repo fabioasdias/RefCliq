@@ -1,4 +1,5 @@
 import networkx as nx
+from networkx.readwrite import json_graph
 from fuzzywuzzy.fuzz import ratio
 from tqdm import tqdm
 from itertools import combinations
@@ -13,11 +14,13 @@ from nltk.tokenize import word_tokenize
 from nltk.stem import snowball
 
 from src.refcliq.geocoding import ArticleGeoCoder
+from src.refcliq.preprocess import import_bibs
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from scipy.sparse import coo_matrix
 
 from os.path import exists
+import klepto
 import pickle
 
 download('stopwords')
@@ -141,7 +144,7 @@ def same_article(a1:dict, a2:dict)->bool:
     return(True)
 
 class CitationNetwork(nx.DiGraph):
-    def __init__(self, articles:list=None, checkpoint_prefix:str='chk', geocode:bool=True, google_key:str=''):
+    def __init__(self, bibs:list=None, checkpoint_prefix:str='chk', google_key:str=''):
         nx.DiGraph.__init__(self)
         # self._G=nx.DiGraph() #the network
         self._year={'None':set()}        #indexes
@@ -150,50 +153,59 @@ class CitationNetwork(nx.DiGraph):
         self._title={0:set()}
         self._authorName={0:set()} #None might be a part of a name
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
-        if articles:
-            self.build(articles, checkpoint_prefix, geocode, google_key)
+        if bibs:
+            self.build(bibs, checkpoint_prefix, google_key)
 
     def save(self, filename:str):
         """Saves the citation network structure to filename"""
-        with open(filename, 'wb') as f:
-            pickle.dump(self.__dict__, f)
+        graph = json_graph.node_link_data(self)
+        d = klepto.archives.hdf_archive(filename, cached=False, serialized=True)
+        d.update({'year':self._year,
+                  'authors':self._authors, 
+                  'title': self._title, 
+                  'authorName':self._authorName, 
+                  'DOIs': self._equivalentDOIs,
+                  'graph':graph})
+        d.dump()
 
     def load(self, filename:str):
         """Loads the citation network structure from filename"""
-        with open(filename,'rb') as f:
-            tmp_dict = pickle.load(f)
-        self.__dict__.update(tmp_dict) 
-    
+        d = klepto.archives.hdf_archive(filename, cached=False, serialized=True)
 
-    def build(self, articles:list, checkpoint_prefix:str, geocode:bool=True, google_key:str=''):
+        d.load('graph')
+        G = json_graph.node_link_graph(d['graph'])
+        self.add_nodes_from(G.nodes(data=True))
+        self.add_edges_from(G.edges(data=True))
+
+        for saved, internal in [('DOIs','_equivalentDOIs'), ('authorName','_authorName'),('title','_title'),('authors','_authors'),('year','_year')]:
+            d.load(saved)
+            self.__dict__[internal]=d[saved]    
+
+    def build(self, bibs:list, checkpoint_prefix:str, google_key:str=''):
         """
-        Builds a directed graph to represent the citation network in the list of
-        articles.
+        Builds a directed graph to represent the citation network of the file list bibs.
         """
-        if geocode:
-            geoCoder=ArticleGeoCoder(google_key)
+
+        geoCoder = ArticleGeoCoder(google_key)
 
 
-        checkpoint_all = checkpoint_prefix + '_bib_all.p'
+        checkpoint_all = checkpoint_prefix + '_bib_all.hdf5'
         if exists(checkpoint_all):
             self.load(checkpoint_all)
             return
 
-        checkpoint_geo = checkpoint_prefix+'_bib_geo.p'
-        if geocode and exists(checkpoint_geo):
+        articles = import_bibs(bibs)
+
+        checkpoint_geo = checkpoint_prefix+'_bib_geo.hdf5'
+        if exists(checkpoint_geo):
             self.load(checkpoint_geo)
         else:
-            checkpoint_bib_entries=checkpoint_prefix+'_bib_entries.p'
-            if exists(checkpoint_bib_entries):
-                self.load(checkpoint_bib_entries)
-            else:
-                print('citation network - Full citation in the .bibs')            
-                for article in tqdm(articles):
-                    citing=self.find(article)
-                self.save(checkpoint_bib_entries)
-            if geocode:
-                geoCoder.add_authors_location_inplace(self)
-                print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
+            print('citation network - Full citation in the .bibs')            
+            for article in tqdm(articles):
+                citing=self.find(article)
+
+            geoCoder.add_authors_location_inplace(self)
+            print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
             self.save(checkpoint_geo)
 
         print('citation network - Cited-References')            
@@ -405,7 +417,7 @@ class CitationNetwork(nx.DiGraph):
             return(n)
         else:
             return(self.add(article))
-
+    @profile
     def cocitation(self, count_label:str='count', copy_data:bool=True)->nx.Graph:
         """
         Builds a co-citation network from the citation network.
@@ -426,6 +438,7 @@ class CitationNetwork(nx.DiGraph):
 
         #removing isolated nodes
         G.remove_nodes_from([n for n in G if len(list(G.neighbors(n)))==0])
+
         if (copy_data):
             for n in G:
                 G.node[n]['data']={**self.node[n]['data']}

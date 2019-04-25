@@ -19,7 +19,6 @@ from community import best_partition
 from optparse import OptionParser
 
 from src.refcliq.citations import CitationNetwork
-from src.refcliq.preprocess import import_bibs
 from src.refcliq.util import thous
 
 import json
@@ -39,10 +38,6 @@ if __name__ == '__main__':
                     action="store", type="string", 
                     help="Google maps API key.",
                     dest="google_key",default='')
-    parser.add_option("-g", "--geocode",
-                    action="store_true",
-                    help="Geocode the citing papers using Nominatim public servers, limited to 1 request/second.",
-                    dest="geocode", default=False)
     (options, args) = parser.parse_args()
 
     if len(args)==0:
@@ -54,17 +49,15 @@ if __name__ == '__main__':
 
     #options.google_key=""
 
-    if options.geocode==False:
-        print("\n\nNOT computing geographic coordinates for citing papers!\nPass -g/--geocode to enable geocoding.\n")
-
-    checkpoint_cn=options.output_file+'_cn.p'
+    checkpoint_cn=options.output_file+'_cn.hdf5'
     if exists(checkpoint_cn):
         citation_network=CitationNetwork()
         citation_network.load(checkpoint_cn)
     else:
-        citation_network=CitationNetwork(import_bibs(args), checkpoint_prefix=options.output_file, geocode=options.geocode, google_key=options.google_key)    
-        citation_network.compute_keywords()
+        citation_network=CitationNetwork(args, checkpoint_prefix=options.output_file, google_key=options.google_key)    
         citation_network.save(checkpoint_cn)
+
+    citation_network.compute_keywords()
 
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
 
@@ -74,7 +67,6 @@ if __name__ == '__main__':
     else:
         co_citation_network=citation_network.cocitation(count_label="count", copy_data=False)
         nx.write_gpickle(co_citation_network, checkpoint_cocn)
-
 
     for n in citation_network:
         citation_network.node[n]['data']['original_cc']=-1
@@ -95,7 +87,7 @@ if __name__ == '__main__':
 
 
     print('Saving results')
-    output={'geocoded':options.geocode}
+    output={'geocoded':options.google_key!=''}
 
     parts={}
     for n in partition:

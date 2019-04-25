@@ -31,7 +31,8 @@ setuptools.setup(
         "tqdm",
         "titlecase",
         "fuzzywuzzy[speedup]",
-        "geocoder",
+        "klepto",
+        "h5py",
         "spacy",
         "googlemaps"
     ],
