@@ -61,11 +61,14 @@ if __name__ == '__main__':
 
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
 
+
+
     checkpoint_cocn=options.output_file+'_cocn.p'
     if exists(checkpoint_cocn):
         co_citation_network=nx.read_gpickle(checkpoint_cocn)
     else:
         co_citation_network=citation_network.cocitation(count_label="count", copy_data=False)
+        print('pickle')
         nx.write_gpickle(co_citation_network, checkpoint_cocn)
 
     for n in citation_network:
@@ -74,6 +77,8 @@ if __name__ == '__main__':
     for i,gg in enumerate(nx.connected_components(co_citation_network)):
         for n in gg:
             citation_network.node[n]['data']['original_cc']=i
+
+
 
     checkpoint_part = options.output_file+'_part.p'
     if exists(checkpoint_part):
