@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import './clusters.css';
+import ForceDirectedGraph from './force-directed-graph';
 
 function combineKeywords(articles, nodelist, field, numberKeywords){
     if (nodelist.length===0){
@@ -105,6 +106,7 @@ class Clusters extends Component {
                 }
 
                 let works=[];
+                let graph=[];
                 let wrapCallBack=(e)=>{                    
                     let nodeID=e.target.getAttribute('data-node');
                     if (this.props.selectCallback !== undefined){
@@ -113,6 +115,21 @@ class Clusters extends Component {
                 }
                 if ( (this.state.extended.hasOwnProperty(clusterID))&&(this.state.extended[clusterID]))
                 {
+                    let thisGraph={nodes:this.props.graphs[clusterID].nodes.filter((n)=>{
+                            return(nodes.includes(n.id))
+                        }), 
+                        links: this.props.graphs[clusterID].links.filter((e)=>{
+                            return(nodes.includes(e.source) && nodes.includes(e.target))
+                        })};
+
+                    console.log(thisGraph)
+                    graph.push(
+                        <ForceDirectedGraph
+                            data={thisGraph}
+                            height={300}
+                            width={300}
+                        />
+                    )
                     for (let i=0;i<nodes.length;i++){
                         let thisArticle=articles[nodes[i]];
                         let reference='';
@@ -178,14 +195,21 @@ class Clusters extends Component {
                                                     }
                                                     this.setState({extended:newExtended});
                                                 }}                            
-                                                style={{paddingLeft: '2px', paddingTop:'2px', verticalAlign:'middle',cursor:'pointer',marginRight:'10px',marginLeft:'auto'}}>
+                                                style={{paddingLeft: '2px', 
+                                                        paddingTop:'2px', 
+                                                        verticalAlign:'middle',
+                                                        cursor:'pointer',
+                                                        marginRight:'10px',
+                                                        marginLeft:'auto'}}>
                                             </img>
                                         </div>
                                         <p>Number of articles: {nodes.length}</p>
                                     </div>
                                 </div>
                                 
-                                {(works.length>0)?<ul>
+                                {(works.length>0)?
+                                    <div>
+                                    {graph}
                                     <table>
                                         <tbody>
                                         <tr><td><b>Name</b></td>
@@ -196,7 +220,8 @@ class Clusters extends Component {
                                             {works}
                                         </tbody>
                                     </table>
-                                </ul>:null}            
+                                    </div>
+                                :null}            
                             </div>);
             }
         }

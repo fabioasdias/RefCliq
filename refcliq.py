@@ -55,8 +55,10 @@ if __name__ == '__main__':
         citation_network.load(checkpoint_cn)
     else:
         citation_network=CitationNetwork(args, checkpoint_prefix=options.output_file, google_key=options.google_key)    
+        print('done citation - saving')
         citation_network.save(checkpoint_cn)
 
+    print('keywords')
     citation_network.compute_keywords()
 
     print(thous(len(citation_network))+' different references with '+thous(len(citation_network.edges()))+' citations.')
@@ -70,6 +72,8 @@ if __name__ == '__main__':
         co_citation_network=citation_network.cocitation(count_label="count", copy_data=False)
         print('pickle')
         nx.write_gpickle(co_citation_network, checkpoint_cocn)
+
+    # exit()
 
     for n in citation_network:
         citation_network.node[n]['data']['original_cc']=-1
@@ -100,23 +104,23 @@ if __name__ == '__main__':
             parts[partition[n]]=[]
         parts[partition[n]].append(n)
 
-    # graphs={}
+    graphs={}
 
     print('Per cluster analysis/data (centrality)')
     for p in tqdm(parts):
         subgraph = co_citation_network.subgraph(parts[p])
         centrality = nx.degree_centrality(subgraph)
 
-        # topo = nx.Graph()
-        # topo.add_nodes_from(subgraph)
-        # topo.add_weighted_edges_from(subgraph.edges(data='count'))
-        # graphs[p] = json_graph.node_link_data(topo)
+        topo = nx.Graph()
+        topo.add_nodes_from(subgraph)
+        topo.add_weighted_edges_from(subgraph.edges(data='count'))
+        graphs[p] = json_graph.node_link_data(topo)
         
         for n in centrality:
             citation_network.node[n]['data']['centrality'] = centrality[n]
 
     output['partitions'] = parts
-    # output['graphs'] = graphs
+    output['graphs'] = graphs
 
     articles={}
     done={}

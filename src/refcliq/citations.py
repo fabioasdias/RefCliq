@@ -155,17 +155,16 @@ class CitationNetwork(nx.DiGraph):
         self._equivalentDOIs={} #yes, one paper can have more than one DOI
         if bibs:
             self.build(bibs, checkpoint_prefix, google_key)
-
+    @profile
     def save(self, filename:str):
         """Saves the citation network structure to filename"""
         graph = json_graph.node_link_data(self)
-        d = klepto.archives.hdf_archive(filename, cached=False, serialized=True)
-        d.update({'year':self._year,
+        d = klepto.archives.hdf_archive(filename, {'year':self._year,
                   'authors':self._authors, 
                   'title': self._title, 
                   'authorName':self._authorName, 
                   'DOIs': self._equivalentDOIs,
-                  'graph':graph})
+                  'graph':graph}, cached=False, serialized=True)
         d.dump()
 
     def load(self, filename:str):
@@ -180,7 +179,7 @@ class CitationNetwork(nx.DiGraph):
         for saved, internal in [('DOIs','_equivalentDOIs'), ('authorName','_authorName'),('title','_title'),('authors','_authors'),('year','_year')]:
             d.load(saved)
             self.__dict__[internal]=d[saved]    
-
+    @profile
     def build(self, bibs:list, checkpoint_prefix:str, google_key:str=''):
         """
         Builds a directed graph to represent the citation network of the file list bibs.
@@ -417,7 +416,7 @@ class CitationNetwork(nx.DiGraph):
             return(n)
         else:
             return(self.add(article))
-    @profile
+    # @profile
     def cocitation(self, count_label:str='count', copy_data:bool=True)->nx.Graph:
         """
         Builds a co-citation network from the citation network.

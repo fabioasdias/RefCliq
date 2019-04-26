@@ -23,6 +23,7 @@ class App extends Component {
       console.log(json);
       this.setState({articles : json.articles, 
                      clusters : json.partitions,
+                     graphs : json.graphs,
                      geo : json.geocoded,
                     });
     });
@@ -36,6 +37,7 @@ class App extends Component {
             articles={this.state.articles}
             clusters={this.state.clusters}
             numberKeywords={this.state.nKeywords}
+            graphs={this.state.graphs}
             selectCallback={(d)=>{
               this.setState({selected:d});
             }}
