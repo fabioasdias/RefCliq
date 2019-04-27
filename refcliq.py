@@ -16,7 +16,7 @@ Original: https://github.com/nealcaren/RefCliq Created by Neal Caren on June 26,
 """
 
 from community import best_partition
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 from src.refcliq.citations import CitationNetwork
 from src.refcliq.util import thous
@@ -29,34 +29,36 @@ from os.path import exists
 import pickle
 
 if __name__ == '__main__':
-    parser = OptionParser()
-    parser.add_option("-o", "--output_file",
-                    action="store", type="string", 
+    parser = ArgumentParser()
+    parser.add_argument("-o", type=str, 
                     help="Output file to save, defaults to 'clusters.json'.",
                     dest="output_file",default='clusters.json')
-    parser.add_option("-k", "--google-key",
-                    action="store", type="string", 
-                    help="Google maps API key.",
+    parser.add_argument("-k", type=str,
+                    help="Google maps API key. Necessary for precise geocoding.",
                     dest="google_key",default='')
-    (options, args) = parser.parse_args()
+    parser.add_argument("--checkpoint",  action="store_true",
+                    help="Saves checkpoint files of the processing -> read the documentation!",
+                    dest="checkpoint",default=False)
+    parser.add_argument("--graphs",  action="store_true",
+                    help="Saves graph drawing information for the cluster.",
+                    dest="graphs",default=False)
+    parser.add_argument("files", nargs='+',
+                    help="List of .bib files to process")
 
-    if len(args)==0:
-        # from glob import glob
-        # args=glob('bib/guru_European*')
-        print('\nNo input files!\n')
-        parser.print_help()
-        exit(-1)
+    options = parser.parse_args()
+
 
     #options.google_key=""
 
     checkpoint_cn=options.output_file+'_cn.hdf5'
-    if exists(checkpoint_cn):
+    if options.checkpoint and exists(checkpoint_cn):
         citation_network=CitationNetwork()
         citation_network.load(checkpoint_cn)
     else:
-        citation_network=CitationNetwork(args, checkpoint_prefix=options.output_file, google_key=options.google_key)    
-        print('done citation - saving')
-        citation_network.save(checkpoint_cn)
+        citation_network=CitationNetwork(options.files, checkpoint_prefix=options.output_file, google_key=options.google_key, checkpoint=options.checkpoint)    
+        if options.checkpoint:
+            print('done citation - saving')
+            citation_network.save(checkpoint_cn)
 
     print('keywords')
     citation_network.compute_keywords()
@@ -66,12 +68,13 @@ if __name__ == '__main__':
 
 
     checkpoint_cocn=options.output_file+'_cocn.p'
-    if exists(checkpoint_cocn):
+    if options.checkpoint and  exists(checkpoint_cocn):
         co_citation_network=nx.read_gpickle(checkpoint_cocn)
     else:
         co_citation_network=citation_network.cocitation(count_label="count", copy_data=False)
         print('pickle')
-        nx.write_gpickle(co_citation_network, checkpoint_cocn)
+        if options.checkpoint:
+            nx.write_gpickle(co_citation_network, checkpoint_cocn)
 
     # exit()
 
@@ -85,14 +88,15 @@ if __name__ == '__main__':
 
 
     checkpoint_part = options.output_file+'_part.p'
-    if exists(checkpoint_part):
+    if options.checkpoint and exists(checkpoint_part):
         with open(checkpoint_part,'rb') as f:
             partition = pickle.load(f)
     else:
         print('Partitioning')
         partition = best_partition(co_citation_network, weight='count', random_state=7) #deterministic
-        with open(checkpoint_part,'wb') as f:
-            pickle.dump(partition,f)
+        if options.checkpoint:
+            with open(checkpoint_part,'wb') as f:
+                pickle.dump(partition,f)
 
 
     print('Saving results')
@@ -110,11 +114,11 @@ if __name__ == '__main__':
     for p in tqdm(parts):
         subgraph = co_citation_network.subgraph(parts[p])
         centrality = nx.degree_centrality(subgraph)
-
-        topo = nx.Graph()
-        topo.add_nodes_from(subgraph)
-        topo.add_weighted_edges_from(subgraph.edges(data='count'))
-        graphs[p] = json_graph.node_link_data(topo)
+        if options.graphs:
+            topo = nx.Graph()
+            topo.add_nodes_from(subgraph)
+            topo.add_weighted_edges_from(subgraph.edges(data='count'))
+            graphs[p] = json_graph.node_link_data(topo)
         
         for n in centrality:
             citation_network.node[n]['data']['centrality'] = centrality[n]
@@ -125,21 +129,15 @@ if __name__ == '__main__':
     articles={}
     done={}
     for n in citation_network.nodes():
-        if n in done:
-            print("!!!",n)
+        assert(n not in done)
         done[n]=True
         articles[n] = citation_network.node[n]['data']
         articles[n]['cites_this']=[p for p in citation_network.predecessors(n)]
         articles[n]['cited_count']=len(articles[n]['cites_this'])
         articles[n]['references']=[p for p in citation_network.successors(n)]
         articles[n]['reference_count']=len(articles[n]['references'])
-        try:
-            articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
-        except:
-            print(n,articles[n],citation_network.node[n]['data'])
-            print(articles[n]['authors'])
-            input('.')
-            raise
+        articles[n]['authors']=[{'last':x.last_names, 'first':x.first_names} for x in articles[n]['authors']]    
+
     output['articles']=articles
 
     outName=options.output_file
