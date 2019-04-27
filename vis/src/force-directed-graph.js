@@ -26,24 +26,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import {forceSimulation, forceLink, forceManyBody, forceCenter} from 'd3-force';
 
-import {XYPlot, MarkSeriesCanvas, LineSeriesCanvas} from 'react-vis';
-
-const colors = [
-  '#19CDD7',
-  '#DDB27C',
-  '#88572C',
-  '#FF991F',
-  '#F15C17',
-  '#223F9A',
-  '#DA70BF',
-  '#4DC19C',
-  '#12939A',
-  '#B7885E',
-  '#FFCB99',
-  '#F89570',
-  '#E79FD5',
-  '#89DAC1'
-];
+import {XYPlot, MarkSeries, LineSeries} from 'react-vis';
 
 /**
  * Create the list of nodes to render.
@@ -58,9 +41,9 @@ function generateSimulation(props) {
   // copy the data
   const nodes = data.nodes.map(d => ({...d}));
   const links = data.links.map(d => ({...d}));
-  // build the simuatation
+  // build the simulation
   const simulation = forceSimulation(nodes)
-    .force('link', forceLink().id(d => d.id))
+    .force('link', forceLink().id(d => d.id).distance(d=> (1.0/d.weight)))
     .force('charge', forceManyBody().strength(strength))
     .force('center', forceCenter(width / 2, height / 2))
     .stop();
@@ -110,27 +93,30 @@ class ForceDirectedGraph extends React.Component {
   }
 
   render() {
-    const {className, height, width, animation} = this.props;
+    const {className, height, width} = this.props;
     const {data} = this.state;
     const {nodes, links} = data;
     return (
       <XYPlot width={width} height={height} className={className}>
-        {links.map(({source, target}, index) => {
+        {links.sort((a,b)=>{
+          return(a.weight-b.weight);
+        }).map(({source, target}, index) => {
           return (
-            <LineSeriesCanvas
-              color={'#B3AD9E'}
+            <LineSeries
+              colorType={'literal'}
               key={`link-${index}`}
-              opacity={0.3}
+              opacity={0.75}
+              color={links[index].color}
+              strokeWidth={Math.log(links[index].weight)+1}
               data={[{...source, color: null}, {...target, color: null}]}
             />
           );
         })}
-        <MarkSeriesCanvas
+        <MarkSeries
           data={nodes}
-          colorType={'category'}
+          colorType={'literal'}
           stroke={'#ddd'}
           strokeWidth={2}
-          colorRange={colors}
         />
       </XYPlot>
     );

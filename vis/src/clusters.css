@@ -1,12 +1,12 @@
 .clusters {
-    width: 1000px;
+    width: 50%;
     height: 908px;
     overflow-y: scroll;
     border: solid;
     border-width: thin;
 }
 .eachCluster {
-    width: 960px;
+    width: fit-content;
     height: fit-content;
     border: solid;
     border-width: thin;

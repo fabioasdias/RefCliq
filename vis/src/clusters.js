@@ -111,25 +111,33 @@ class Clusters extends Component {
                     let nodeID=e.target.getAttribute('data-node');
                     if (this.props.selectCallback !== undefined){
                         this.props.selectCallback(nodeID);
+                        this.setState({selected:nodeID})
                     }
                 }
                 if ( (this.state.extended.hasOwnProperty(clusterID))&&(this.state.extended[clusterID]))
                 {
+                    // console.log(this.props.graph, this.props.graph[clusterID])
+                    if ((nodes.length<=50)&&(this.props.graphs!==undefined)&&(this.props.graphs.hasOwnProperty(clusterID))){
                     let thisGraph={nodes:this.props.graphs[clusterID].nodes.filter((n)=>{
                             return(nodes.includes(n.id))
+                        }).map((n)=>{
+                            return({...n, color:(n.id===this.state.selected)?'red':'darkblue'})
                         }), 
                         links: this.props.graphs[clusterID].links.filter((e)=>{
                             return(nodes.includes(e.source) && nodes.includes(e.target))
-                        })};
-
-                    console.log(thisGraph)
-                    graph.push(
+                        }).map((e)=>{
+                            return({...e, color: ((e.source===this.state.selected)||(e.target===this.state.selected))? 'red':'gray'})
+                        })
+                    };
+                    
+                    graph.push(<div style={{width:'fit-content',margin:'auto'}}>
                         <ForceDirectedGraph
                             data={thisGraph}
                             height={300}
                             width={300}
-                        />
-                    )
+                            strenght={100}
+                        /></div>);    
+                    }
                     for (let i=0;i<nodes.length;i++){
                         let thisArticle=articles[nodes[i]];
                         let reference='';

@@ -17,16 +17,9 @@ function reprAuthors(authors){
 function reprGeo(g){
   let res='';
   for (let i=0; i < g.length; i++){
-    if (g[i].accurate!==null){
-      res=res+'('+g[i].accurate[0]+','+g[i].accurate[1]+')';
-    } else {
-      res=res+'(,)';
-    }
-    res = res +';'
-    res = res +'('+g[i].generic[0]+','+g[i].generic[1]+');';
-    res = res + g[i].country;
+      res=res+'('+g[i][0]+','+g[i][1]+')';
     if (i!==(g.length-1)){
-      res=res+'|'
+      res = res +';';
     }
   }
   return(res);
@@ -58,11 +51,11 @@ class CitingDetails extends Component {
       let citingID=articles[selected].cites_this[i];
       let citing=articles[citingID];
 
-      if (citing.geo===undefined){
+      if (citing.coordinates===undefined){
         console.log(citing);
         continue; //WEIRD
       }
-      for (let j=0; j<citing.geo.length; j++){
+      for (let j=0; j<citing.coordinates.length; j++){
         if ((year!=='-1')&&
         (((! cummulative)&&(year!==citing.year)) ||
         ((cummulative) && (parseInt(citing.year,10) > parseInt(year,10)))
@@ -70,32 +63,17 @@ class CitingDetails extends Component {
           continue;
         }
 
-        let kind;
-        let coords;
-        if (citing.geo[j].accurate!==null){
-          kind='accurate';
-          coords=citing.geo[j].accurate;
-        }else{
-          if (citing.geo[j].generic===null){
-            //no viable points
-            continue;
-          }
-          kind='generic';
-          coords=citing.geo[j].generic;
-        }
         gj.features.push({
           type: "Feature",
           properties: {
             year: citing.year,
-            country: citing.geo[j].country,
-            kind : kind,
-            count : citing.geo.length,
+            count : citing.coordinates.length,
             title: citing.year,
-            icon: (kind==='accurate')?"marker":"anchor"
+            icon: "marker"
           },
           geometry: {
             type: "Point",
-            coordinates: coords
+            coordinates: citing.coordinates[j]
           }
         });  
       }
@@ -152,8 +130,8 @@ class CitingDetails extends Component {
               case 'authors':
                 line = line +reprAuthors(article.authors);
                 break;
-              case 'geo':
-                line = line +reprGeo(article.geo);
+              case 'coordinates':
+                line = line +reprGeo(article.coordinates);
                 break;
               default:
                 line = line +reprField(article,field);
