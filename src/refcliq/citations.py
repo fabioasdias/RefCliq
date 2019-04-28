@@ -209,11 +209,11 @@ class CitationNetwork(nx.DiGraph):
         to_remove = []
         for n in self:
             # if this article has fewer than min_citations citations AND doesn't cite anything that has more than min_citations
-            if (len(list(self.predecessors(n))) < min_citations) and (max([len(list(self.predecessors(x))) for x in self.successors(n)]) < min_citations):
+            if (len(list(self.predecessors(n))) < min_citations) and ((len(list(self.successors(n))) == 0) or (max([len(list(self.predecessors(x))) for x in self.successors(n)]) < min_citations)):
                 to_remove.append(n)
 
         for n in to_remove:
-            self._remove(n)
+            self.remove(n)
 
         geoCoder.add_authors_location_inplace(self)
         print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
