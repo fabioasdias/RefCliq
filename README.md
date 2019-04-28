@@ -115,6 +115,10 @@ The geocoded information can be displayed as markers or as a heatmap. To reduce 
 
     The exported .tsv files contain country information as a field. It should be possible to break that field and use Excel or Google docs map drawing features to do a choropleth map. It is a bit tricky to match the country names provided to actual countries, which is why I didn't implement that yet. Pull requests more than welcome for this.
 
+* What is this `cache.json` file that appeared in my folder?
+
+    To minimize the calls to Google's geocoding API, the script caches the results, so no duplicate calls are made, even in different runs. If you don't want start from zero, [download my current cache.json here](https://www.dropbox.com/s/n5q4ha2vz606mp5/cache.json?dl=0).
+
 * The first time I'm running it I get `Can't find model 'en_core_web_sm'.`, then it crashes.
 
     Just run the command again and it will work. It needs to download the English language model for SpaCy, but the script doesn't automatically refresh the installed packages. Pull requests welcome.
