@@ -1,49 +1,17 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import cherrypy
+import http.server
+import socketserver
 import sys
-import json
-import os
 import webbrowser
-
-def cors():
-    if cherrypy.request.method == 'OPTIONS':
-        # preflign request
-        # see http://www.w3.org/TR/cors/#cross-origin-request-with-preflight-0
-        cherrypy.response.headers['Access-Control-Allow-Methods'] = 'POST'
-        cherrypy.response.headers['Access-Control-Allow-Headers'] = 'content-type'
-        cherrypy.response.headers['Access-Control-Allow-Origin'] = '*'
-        # tell CherryPy no avoid normal handler
-        return True
-    else:
-        cherrypy.response.headers['Access-Control-Allow-Origin'] = '*'
+from tempfile import TemporaryDirectory
+from shutil import copytree, copy
+from os import chdir
+from os.path import dirname, realpath, join
 
 
-cherrypy.tools.cors = cherrypy._cptools.HandlerTool(cors)
-
-
-@cherrypy.expose
-class server(object):
-    @cherrypy.expose
-    @cherrypy.config(**{'tools.cors.on': True})
-    @cherrypy.tools.json_out()
-    @cherrypy.tools.json_in()
-    @cherrypy.tools.gzip()
-    def getAspects(self):
-        cherrypy.response.headers["Access-Control-Allow-Origin"] = "*"
-        input_json = cherrypy.request.json
-        print(input_json)
-
-    @cherrypy.expose
-    @cherrypy.tools.json_out()
-    def availableCountries(self):
-        pass
-
-    @cherrypy.expose
-    def index(self):
-        return("It works!")
-
+template = 'template'
 
 if __name__ == "__main__":
 
@@ -52,24 +20,19 @@ if __name__ == "__main__":
             sys.argv[0]))
         exit(-1)
 
-    with open(sys.argv[1]) as fin:
-        data = json.load(fin)
+    with TemporaryDirectory() as basefolder:
 
-    webapp = server()
-    conf = {
-        '/': {
-            'tools.sessions.on': True,
-            'tools.staticdir.root': os.path.abspath(os.getcwd()),
-            'tools.gzip.on': True,
-            'tools.gzip.mime_types': ['text/*', 'application/*']
-        },
-        '/public': {
-            'tools.staticdir.on': True,
-            'tools.staticdir.dir': './public'
-        }
-    }
-    cherrypy.server.max_request_body_size = 0  # for upload
-    cherrypy.server.socket_host = '0.0.0.0'
-    cherrypy.server.socket_port = 8080
-    webbrowser.open_new_tab("http://localhost:8080/")
-    cherrypy.quickstart(webapp, '/', conf)
+        newRoot=join(basefolder,'refcliq')
+        copytree(join(dirname(realpath(__file__)), template), newRoot)
+        copy(sys.argv[1], join(newRoot, 'data.json'))
+        chdir(newRoot)
+
+        PORT = 8080
+        Handler = http.server.SimpleHTTPRequestHandler
+        url = "http://localhost:{0}/".format(PORT)
+        webbrowser.open_new_tab(url)
+        with socketserver.TCPServer(("", PORT), Handler) as httpd:
+            print('Serving at {0}\n\nPress Ctrl+C (or Command+dot) to stop.\n\n')
+            httpd.serve_forever()
+
+        

@@ -193,8 +193,8 @@ class ArticleGeoCoder:
 
                         trees[country][state][city].append(n)
 
-        print('Getting coordinates')
-        for country in tqdm(trees):
+        
+        for country in trees:
             cached = _find(self._parts_by_country, country)
 
             if cached is None:
@@ -219,13 +219,14 @@ class ArticleGeoCoder:
                             country))
                         print(
                             '(This can happen when a author name has a dot at the end of a non-abreviation.)')
-                        print(trees[country])
+                        # print(trees[country])
                         raise
                 if geo:
                     self._parts_by_country[country] = _count_useful_parts(
                         parts, geo)
                     self._save_state()
 
+        print('Getting coordinates')
         for country in tqdm(trees):
             cached = _find(self._parts_by_country, country)
             to_use = self._parts_by_country[cached]
@@ -303,7 +304,7 @@ class ArticleGeoCoder:
         if res:
             res = _filter_geocode(res[0])
 
-        print('google ', address)
+        # print('google ', address)
         self._outgoing_calls += 1
         self._last_request = monotonic()
         return(res)

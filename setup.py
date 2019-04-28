@@ -1,13 +1,21 @@
 import setuptools
 from glob import glob
-from os.path import basename
-from os.path import dirname
-from os.path import join
-from os.path import splitext
+from os.path import basename, dirname, join, splitext
+from os import walk
 
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+#https://stackoverflow.com/questions/27664504/how-to-add-package-data-recursively-in-python-setup-py
+def package_files(directory):
+    paths = []
+    for (path, directories, filenames) in walk(directory):
+        for filename in filenames:
+            paths.append(join('..', path, filename))
+    return paths
+
+extra_files = package_files('template')
 
 setuptools.setup(
     name="refcliq",
@@ -20,6 +28,7 @@ setuptools.setup(
     url="https://github.com/fabioasdias/RefCliq",
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
+    package_data={'': extra_files},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
     include_package_data = True,    
     scripts = ['refcliq.py', 'refcliqvis.py'],
@@ -31,7 +40,6 @@ setuptools.setup(
         "tqdm>=4.31.1",
         "titlecase>=0.12.0",
         "fuzzywuzzy[speedup]>=0.17.0",
-        "cherrypy>=18.1.1",
         "klepto>=0.1.6",
         "h5py>=2.9.0",
         "spacy>=2.1.3",

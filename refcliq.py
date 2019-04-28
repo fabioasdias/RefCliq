@@ -48,7 +48,6 @@ if __name__ == '__main__':
     citation_network = CitationNetwork()
     citation_network.build(options.files, google_key=options.google_key, min_citations=2)
 
-    print('keywords')
     citation_network.compute_keywords()
 
     print(thous(len(citation_network))+' different references with ' +
@@ -66,11 +65,10 @@ if __name__ == '__main__':
             citation_network.node[n]['data']['original_cc'] = i
 
     
-    print('Partitioning (no progress bar for this - sorry!)')
+    print('\nPartitioning (no progress bar for this - sorry!)\n')
     partition = best_partition(
         co_citation_network, weight='count', random_state=7)  # deterministic
 
-    print('Saving results')
     output = {'geocoded': options.google_key != ''}
 
     parts = {}
@@ -97,6 +95,7 @@ if __name__ == '__main__':
     output['partitions'] = parts
     output['graphs'] = graphs
 
+    print('Saving')
     articles = {}
     for n in tqdm(citation_network.nodes()):
         # if the work isn't cited or doesn't cite anything useful (aka is never going to show up in the interface)
@@ -119,3 +118,5 @@ if __name__ == '__main__':
 
     with open(outName, 'w') as fout:
         json.dump(output, fout)  # , indent=4, sort_keys=True)
+
+    print('Run "refcliqvis {0}" to view the results.'.format(outName))
