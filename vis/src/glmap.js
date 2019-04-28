@@ -110,7 +110,7 @@ let Map = class Map extends React.Component {
     if ((props.geojson!==undefined)&&
     ((this.props.heatmap!==props.heatmap)||
      (this.props.year!==props.year)||
-     (this.props.cummulative!==props.cummulative)||
+     (this.props.cumulative!==props.cumulative)||
      (this.props.selected!==props.selected))){
       this.addLayer(props.geojson, props.heatmap);
     }

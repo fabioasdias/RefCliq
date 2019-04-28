@@ -100,7 +100,7 @@ keywords of the citing works.
 
 **Citation details**: This panel is divided in two parts: the map on the top (if geocoding is enabled by providing a Google geocoding key) and the list of citing works. This list can be exported as a tab separated values file by clicking on the *Export tsv file* button. The DOI link for each work is also provided, if that information is available.
 
-The geocoded information can be displayed as markers or as a heatmap. To reduce the impact of papers with several authors on the heatmap, the log of the number of authors is used. The information on the map can be filtered to include only a single year or all years up to the selected year (using the *cummulative* checkbox). Unchecking the *Fit to markers* box will keep the map from changing the viewport (useful to do comparisons).
+The geocoded information can be displayed as markers or as a heatmap. To reduce the impact of papers with several authors on the heatmap, the log of the number of authors is used. The information on the map can be filtered to include only a single year or all years up to the selected year (using the *cumulative* checkbox). Unchecking the *Fit to markers* box will keep the map from changing the viewport (useful to do comparisons).
 
 
 ## FAQ

@@ -40,10 +40,10 @@ function reprField(article, field){
 class CitingDetails extends Component {
   constructor(props){
     super(props);
-    this.state={geojson:undefined, citingList:[], cummulative: false, fit:true, heatmap:false, year:'-1'};
+    this.state={geojson:undefined, citingList:[], cumulative: false, fit:true, heatmap:false, year:'-1'};
   }
 
-  updateGeoJSON(articles, selected, year, cummulative){
+  updateGeoJSON(articles, selected, year, cumulative){
     let gj={type: "FeatureCollection", features:[]};
 
     for (let i=0;i<articles[selected].cites_this.length;i++){
@@ -57,8 +57,8 @@ class CitingDetails extends Component {
       }
       for (let j=0; j<citing.coordinates.length; j++){
         if ((year!=='-1')&&
-        (((! cummulative)&&(year!==citing.year)) ||
-        ((cummulative) && (parseInt(citing.year,10) > parseInt(year,10)))
+        (((! cumulative)&&(year!==citing.year)) ||
+        ((cumulative) && (parseInt(citing.year,10) > parseInt(year,10)))
         )){
           continue;
         }
@@ -86,7 +86,7 @@ class CitingDetails extends Component {
       let citinglist=props.articles[props.selected].cites_this.slice().sort((a,b)=>{
         return(parseInt(props.articles[a].year,10)-parseInt(props.articles[b].year,10));
       });
-      let gj=this.updateGeoJSON(props.articles, props.selected, this.state.year, this.state.cummulative);
+      let gj=this.updateGeoJSON(props.articles, props.selected, this.state.year, this.state.cumulative);
       let years=[];
       let yearsOp=[];
       for (let i=0;i<citinglist.length;i++){
@@ -192,7 +192,7 @@ class CitingDetails extends Component {
             heatmap={this.state.heatmap}
             year={this.state.year}
             fit={this.state.fit}
-            cummulative={this.state.cummulative}
+            cumulative={this.state.cumulative}
           />
         </div>:null}
 
@@ -220,7 +220,7 @@ class CitingDetails extends Component {
                 style={{marginLeft:'20px'}}
                 onChange={(e)=>{
                     let selYear=e.target.value;
-                    let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear, this.state.cummulative);
+                    let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear, this.state.cumulative);
                     this.setState({geojson:gj, year:selYear});
                 }} >
                 {this.state.yearOptions.map( (e) => {
@@ -234,15 +234,15 @@ class CitingDetails extends Component {
                 })}
               </select> 
             <input 
-              name="cummulative" 
+              name="cumulative" 
               type="checkbox"              
-              defaultChecked={this.state.cummulative}
-              key={'cummulative'}
+              defaultChecked={this.state.cumulative}
+              key={'cumulative'}
               onChange={(e)=>{
                 let gj=this.updateGeoJSON(this.props.articles, this.props.selected, this.state.year, e.target.checked);
-                this.setState({geojson:gj, cummulative: e.target.checked});
+                this.setState({geojson:gj, cumulative: e.target.checked});
               }}
-            /> Cummulative
+            /> Cumulative
           </div>:null}
           {header}
           <div>
