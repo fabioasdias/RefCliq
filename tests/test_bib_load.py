@@ -1,5 +1,5 @@
 import pytest
-from src.refcliq.preprocess import import_bibs
+from refcliq.preprocess import import_bibs
 from os.path import dirname, realpath, join
 
 class TestBib(object):

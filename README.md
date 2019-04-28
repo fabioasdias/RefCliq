@@ -11,20 +11,20 @@ The main differences are:
 
 * More robust article matching, based on all available information (so two articles from the same author/year in the same journal don't get clumped together if they also have the DOI or title)
 * Robust string matching, to catch spelling errors ([using fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy))
-* Degree centrality instead of betweeness centrality.
+* Degree centrality instead of betweenness centrality.
 * The clustering algorithm is the same ([louvain](https://github.com/taynaud/python-louvain)), but the co-citation count is not ignored 
 * Geocoding support, where the affiliation field is used to map the location of the citing authors. **This requires a Google maps API key, which may require payment**. [More information about Google geocoding API](https://developers.google.com/maps/documentation/geocoding/start). The guide on how to get a key [is available here](https://developers.google.com/maps/documentation/geocoding/get-api-key).
 
 **Important**: The input bibliography files *must be from Web of Science / Web of Knowledge*, including the *Cited references* field. Otherwise the references section might be missing or with a different format and this will not work.
 
-**Really Important**: Most .bib files include information that was manually inputed by different people using different ideas/notations/conventions. This package will work for most cases, but not all. Some manual editing of the .bib file might be required.
+**Really Important**: Most .bib files include information that was manually filled by different people using different ideas/notations/conventions. This package will work for most cases, but not all. Some manual editing of the .bib file might be required.
 
-If you run into an error that should be fixed in the code, please [open a new issue here](https://github.com/fabioasdias/RefCliq/issues/new). Be sure to [check the existing issues first](https://github.com/fabioasdias/RefCliq/issues), be as descriptive as possible and include examples of the error and detailed instructions on how to replicate it.
+If you run into an error that you believe should be fixed in the code, or if you have a suggestion for a new feature, please [open a new issue here](https://github.com/fabioasdias/RefCliq/issues/new). Be sure to [check the existing issues first](https://github.com/fabioasdias/RefCliq/issues), be as descriptive as possible and include examples of the error and detailed instructions on how to replicate it.
 
 ## Installation:
 
 
-*Only python 3 is supported.*
+*Only python 3 is supported*, after all python 2 is set to [retire very soon](https://pythonclock.org/).
 
 ```
 pip install refcliq
@@ -36,15 +36,15 @@ All the dependencies will be automatically installed.
 
 
 This package contains two scripts: 
-* refcliq.py: Computes the clustering and saves the result in a json file.
-* refcliqvis.py: Starts the visualization interface for a pre-computed file.
+* rc_cluster.py: Computes the clustering and saves the result in a json file.
+* rc_vis.py: Starts the visualization interface for a pre-computed file.
 
 ### Generating the results
-Running refcliq.py with a '-h' argument will display the help:
+Running rc_cluster.py with a '-h' argument will display the help:
 
 ```
-$ refcliq.py -h
-usage: refcliq.py [-h] [-o OUTPUT_FILE] [--cites CITES] [-k GOOGLE_KEY]
+$ rc_cluster.py -h
+usage: rc_cluster.py [-h] [-o OUTPUT_FILE] [--cites CITES] [-k GOOGLE_KEY]
                   [--graphs]
                   files [files ...]
 
@@ -72,13 +72,14 @@ Without the geocoding key the countries are still identified and present in the 
 Assuming that the results file is named `clusters.json`:
 
 ```
-$ refcliqvis.py clusters.json
+$ rc_vis.py clusters.json
 ```
 
 A new tab will be open on the default browser that will look like this (with geocoding enabled):
 
-![Basic interface with the map on the top right and the cluster listing on the left](doc/base.png "")
-
+![Basic interface with the map on the top right and the cluster listing on the left]
+(https://github.com/fabioasdias/RefCliq/raw/master/doc/base.png "")
+ 
 The interface is divided in two panels, the cluster visualisation on the left and the citation details on the right.
 
 **Clusters**: Each box on the left represents one cluster found by the louvain method. In its "collapsed" visualisation, it displays the number of articles in this cluster, the *Content keywords* directly computed from the available abstracts of the articles in this cluster, and the *Keyworkds of citing papers*, representing they keywords computed from the papers that cite the papers in this cluster. The keywords are computed using [sklearn](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html), with only tf enabled.
@@ -87,7 +88,7 @@ The two sliders on the top left control what is displayed, hiding works with few
 
 Clicking on the chevron on the top right part of the cluster box will "expand" that cluster, looking like this (after clicking also on the first citation):
 
-![one cluster on the left side is expanded, showing a node-link plot](doc/graph.png "")
+![one cluster on the left side is expanded, showing a node-link plot](https://github.com/fabioasdias/RefCliq/raw/master/doc/graph.png "")
 
 The expanded version lists all articles in that cluster, with clickable links
 that activate the panel on the right of the interface that displays the citing
@@ -107,21 +108,33 @@ The geocoded information can be displayed as markers or as a heatmap. To reduce 
 
 ## FAQ
 
+* I don't need geocoding, should I use the original version? *or* I ran my .bibs in the original version and I got different results! 
+
+    This project started as a fork of the original version, aiming only to add the authors' addresses information, I'm not sure if any lines from the original version are present in this project now. Python 2 and coding methodology aside (and the whole [try/except misuse](https://github.com/nealcaren/RefCliq/blob/f67fef07900e322db90ddd5ce94dc83ca8dcf10c/refcliq.py#L90)), since the original version only considers the [first author, year, and the title/journal](https://github.com/nealcaren/RefCliq/blob/f67fef07900e322db90ddd5ce94dc83ca8dcf10c/refcliq.py#L101), it merges things that should not be merged (two papers of the same author in the same journal and year). Further, the cavalier approach to text processing silently loses works in the processing, some time whole files (.bib). A more profound problem is that the co-citation count is [not considered by the Louvain clustering](https://github.com/nealcaren/RefCliq/blob/f67fef07900e322db90ddd5ce94dc83ca8dcf10c/refcliq.py#L498), so small changes in the topology of the co-citation network can *significantly* impact the clustering.
+
+* I don't want to get a Google key, is there any way to draw a map?
+
+    The exported .tsv files contain country information as a field. It should be possible to break that field and use Excel or Google docs map drawing features to do a choropleth map. It is a bit tricky to match the country names provided to actual countries, which is why I didn't implement that yet. Pull requests more than welcome for this.
+
+* The first time I'm running it I get `Can't find model 'en_core_web_sm'.`, then it crashes.
+
+    Just run the command again and it will work. It needs to download the English language model for SpaCy, but the script doesn't automatically refresh the installed packages. Pull requests welcome.
+
 * Why not use nominatim for geocoding? 
 
-    We actually used it at the start of the project, but it missed several addresses (like `Leics, England`) and it geocoded `Toronto, Ontario, Canada` as a point in the middle of the forest about 50km north of Victoria, BC.
+    We actually used it at the start of the project because it was free, but it missed several addresses (like `Leics, England`) and it geocoded `Toronto, Ontario, Canada` as a point about 50km north of Victoria, BC, in the middle of the forest. Google geocoding **can get expensive**, but it actually works.
 
 * Why tab separated values (.tsv) instead of comma separated values (.csv) for the exported citations?
 
     While the specification of the csv format is rather robust, there are some atrocious implementations of it in the wild. By using a character that is *not* present in the values, the parsing is easier and less error-prone.
 
-* Why degree centrality instead of betweeness_centrality as the original RefCliq?
+* Why degree centrality instead of betweenness_centrality as the original RefCliq?
 
     Consider the following graph:
 
-    ![Node link plot of a graph with 9 nodes, two cliques of four in each side connected by a node in the center](doc/centrality.png "")
+    ![Node link plot of a graph with 9 nodes, two cliques of four in each side connected by a node in the center](https://github.com/fabioasdias/RefCliq/raw/master/doc/centrality.png "")
 
-    Betweeness centrality measures how many shortest paths of the graph pass through a given node. In this case, all paths connecting nodes from the left side of the red node to nodes on the right side will pass through the red node, so the betweeness centrality of the red node will be rather high (`~0.57`), which is not exactly what we want to measure. The degree centrality for this node is `2/8`, because it is connected to two of the possible eight nodes in the network.
+    Betweenness centrality measures how many shortest paths of the graph pass through a given node. In this case, all paths connecting nodes from the left side of the red node to nodes on the right side will pass through the red node, so the betweenness centrality of the red node will be rather high (`~0.57`), which is not exactly what we want to measure. The degree centrality for this node is `2/8`, because it is connected to two of the possible eight nodes in the network. This is a rather extreme example, which likely would be cut in two clusters by Louvain (depending on the co-citation count).
 
     Further, degree centrality is *much* faster to compute.
 

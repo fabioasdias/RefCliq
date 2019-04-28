@@ -1,6 +1,6 @@
 import pytest
-from src.refcliq.citations import CitationNetwork
-from src.refcliq.preprocess import import_bibs
+from refcliq.citations import CitationNetwork
+from refcliq.preprocess import import_bibs
 from os.path import dirname, realpath, join
 
 class TestCN(object):

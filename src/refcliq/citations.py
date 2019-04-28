@@ -13,8 +13,8 @@ from math import log
 from nltk.tokenize import word_tokenize
 from nltk.stem import snowball
 
-from src.refcliq.geocoding import ArticleGeoCoder
-from src.refcliq.preprocess import import_bibs
+from refcliq.geocoding import ArticleGeoCoder
+from refcliq.preprocess import import_bibs
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from scipy.sparse import coo_matrix

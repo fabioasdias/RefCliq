@@ -7,31 +7,25 @@ from os import walk
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-#https://stackoverflow.com/questions/27664504/how-to-add-package-data-recursively-in-python-setup-py
-def package_files(directory):
-    paths = []
-    for (path, directories, filenames) in walk(directory):
-        for filename in filenames:
-            paths.append(join('..', path, filename))
-    return paths
-
-extra_files = package_files('template')
 
 setuptools.setup(
     name="refcliq",
-    version="0.0.10",
+    version="0.0.14",
     author="Fabio Dias",
     author_email="fabio.dias@gmail.com",
     description="Community analysis in bibliographical references",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/fabioasdias/RefCliq",
-    packages=setuptools.find_packages('src'),
-    package_dir={'': 'src'},
-    package_data={'': extra_files},
+    packages=['refcliq'],
+    package_dir={'refcliq': 'src/refcliq'},
+    package_data={'refcliq': ['template/*',
+                              'template/static/*',
+                              'template/static/css/*',
+                              'template/static/js/*']},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
-    include_package_data = True,    
-    scripts = ['refcliq.py', 'refcliqvis.py'],
+    # include_package_data = True,    
+    scripts = ['rc_cluster.py', 'rc_vis.py'],
     install_requires = [
         "python-louvain>=0.13",
         "numpy>=1.16.2",
