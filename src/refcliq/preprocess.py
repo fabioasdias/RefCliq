@@ -3,8 +3,8 @@ from pybtex.database.input import bibtex
 from pybtex.database import Person
 import re
 from titlecase import titlecase
-from src.refcliq.bibtex import parse
-from src.refcliq.util import thous, cleanCurlyAround
+from refcliq.bibtex import parse
+from refcliq.util import thous, cleanCurlyAround
 
 # _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)]?(, (?P<year>\d{4}))?, (?P<journal>.*?)(, (?P<vol>V(, )?[^,]+))?(, (?P<page>P(, )?[^,]+))?(, [DOI ^,]+(?P<doi>10.( )*\d{4,9}/[ ,._;()/<>:#\\A-Z0-9\-\+]*))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)
 _citePattern=re.compile(r"{?(?P<author>[\w\s\.\(\)-]*?)?(, )?(?P<year>\d{4})?(, (?P<journal>.*?))(, (?P<vol>V[, ]*[^,]+))?(, (?P<page>P[, ]*[^,]+))?(, [DOIRG/ ^,]+(?P<doi>.*))?((\. )|(\.})|(\.\Z)|(}\Z))", flags=re.IGNORECASE)

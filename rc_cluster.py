@@ -19,8 +19,9 @@ neal.caren@gmail.com
 from community import best_partition
 from argparse import ArgumentParser
 
-from src.refcliq.citations import CitationNetwork
-from src.refcliq.util import thous
+from refcliq.citations import CitationNetwork
+from refcliq.util import thous
+
 import json
 from tqdm import tqdm
 import networkx as nx
@@ -120,4 +121,4 @@ if __name__ == '__main__':
     with open(outName, 'w') as fout:
         json.dump(output, fout)  # , indent=4, sort_keys=True)
 
-    print('Run "refcliqvis.py {0}" to view the results.'.format(outName))
+    print('Run "rc_vis.py {0}" to view the results.'.format(outName))

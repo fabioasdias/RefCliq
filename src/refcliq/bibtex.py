@@ -1,5 +1,5 @@
 import re
-from src.refcliq.util import cleanCurlyAround
+from refcliq.util import cleanCurlyAround
 
 _firstLinePattern=re.compile(r"@(?P<kind>.*?){([\s]*(?P<id>[^,\s]+),)")
 _fieldPattern=re.compile(r"(?P<name>[\w-]+?)[\s]*=[\s]*({(?P<content>.*)})",    flags=re.IGNORECASE|re.DOTALL) 

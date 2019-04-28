@@ -8,7 +8,8 @@ import webbrowser
 from tempfile import TemporaryDirectory
 from shutil import copytree, copy
 from os import chdir
-from os.path import dirname, realpath, join
+from os.path import join
+from imp import find_module
 
 
 template = 'template'
@@ -21,9 +22,9 @@ if __name__ == "__main__":
         exit(-1)
 
     with TemporaryDirectory() as basefolder:
-
+        print(find_module('refcliq'))
         newRoot=join(basefolder,'refcliq')
-        copytree(join(dirname(realpath(__file__)), template), newRoot)
+        copytree(join(find_module('refcliq')[1], template), newRoot)
         copy(sys.argv[1], join(newRoot, 'data.json'))
         chdir(newRoot)
 

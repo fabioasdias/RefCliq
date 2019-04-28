@@ -1,5 +1,5 @@
 from os.path import exists
-from src.refcliq.util import cleanCurlyAround
+from refcliq.util import cleanCurlyAround
 import re
 import networkx as nx
 from fuzzywuzzy.process import extractOne
