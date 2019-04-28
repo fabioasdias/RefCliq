@@ -11,7 +11,6 @@ The main differences are:
 * More robust article matching, based on all available information (so two articles from the same author/year in the same journal don't get clumped together if they also have the DOI or title)
 * Robust string matching, to catch spelling errors ([using fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy))
 * Degree centrality instead of betweenness centrality.
-* The clustering algorithm is the same ([louvain](https://github.com/taynaud/python-louvain)), but the co-citation count is not ignored 
 * Geocoding support, where the affiliation field is used to map the location of the citing authors. **This requires a Google maps API key, which may require payment**. [More information about Google geocoding API](https://developers.google.com/maps/documentation/geocoding/start). The guide on how to get a key [is available here](https://developers.google.com/maps/documentation/geocoding/get-api-key).
 
 **Important**: The input bibliography files *must be from Web of Science / Web of Knowledge*, including the *Cited references* field. Otherwise the references section might be missing or with a different format and this will not work.
