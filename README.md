@@ -1,6 +1,5 @@
 # RefCliq
 
-
 This package is a **full rewrite** of [Neal Caren's
 RefCliq](https://github.com/nealcaren/RefCliq). The objective is the same, to
 analyse clustering of co-cited publications using graph clustering. Note that
