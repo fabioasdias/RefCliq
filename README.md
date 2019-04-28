@@ -76,8 +76,7 @@ $ rc_vis.py clusters.json
 
 A new tab will be open on the default browser that will look like this (with geocoding enabled):
 
-![Basic interface with the map on the top right and the cluster listing on the left]
-(https://github.com/fabioasdias/RefCliq/raw/master/doc/base.png "")
+![Basic interface with the map on the top right and the cluster listing on the left](https://github.com/fabioasdias/RefCliq/raw/master/doc/base.png "")
  
 The interface is divided in two panels, the cluster visualisation on the left and the citation details on the right.
 
