@@ -34,6 +34,9 @@ if __name__ == '__main__':
     parser.add_argument("-o", type=str,
                         help="Output file to save, defaults to 'clusters.json'.",
                         dest="output_file", default='clusters.json')
+    parser.add_argument("--cites", type=int,
+                        help="Minimum number of citations for an article to be included, defaults to 2.",
+                        dest="cites", default=2)
     parser.add_argument("-k", type=str,
                         help="Google maps API key. Necessary for precise geocoding.",
                         dest="google_key", default='')
@@ -46,7 +49,8 @@ if __name__ == '__main__':
     options = parser.parse_args()
 
     citation_network = CitationNetwork()
-    citation_network.build(options.files, google_key=options.google_key, min_citations=2)
+    citation_network.build(
+        options.files, google_key=options.google_key, min_citations=options.cites)
 
     citation_network.compute_keywords()
 
@@ -54,8 +58,7 @@ if __name__ == '__main__':
           thous(len(citation_network.edges()))+' citations.')
 
     co_citation_network = citation_network.cocitation(
-        count_label="count", copy_data=False, min_cocitations=3)
-
+        count_label="count", copy_data=False, min_cocitations=options.cites)
 
     for n in citation_network:
         citation_network.node[n]['data']['original_cc'] = -1
@@ -64,7 +67,6 @@ if __name__ == '__main__':
         for n in gg:
             citation_network.node[n]['data']['original_cc'] = i
 
-    
     print('\nPartitioning (no progress bar for this - sorry!)\n')
     partition = best_partition(
         co_citation_network, weight='count', random_state=7)  # deterministic
@@ -119,4 +121,4 @@ if __name__ == '__main__':
     with open(outName, 'w') as fout:
         json.dump(output, fout)  # , indent=4, sort_keys=True)
 
-    print('Run "refcliqvis {0}" to view the results.'.format(outName))
+    print('Run "refcliqvis.py {0}" to view the results.'.format(outName))

@@ -43,6 +43,7 @@ setuptools.setup(
         "klepto>=0.1.6",
         "h5py>=2.9.0",
         "spacy>=2.1.3",
+        # "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.1.0/en_core_web_sm-2.1.0.tar.gz",
         "googlemaps>=3.0.2",
         "scikit-learn>=0.20.3"
     ],

@@ -10,6 +10,7 @@ import json
 import googlemaps
 import spacy
 from titlecase import titlecase
+from sys import stderr
 
 CACHE = 'cache.json'
 
@@ -130,7 +131,16 @@ class ArticleGeoCoder:
             coordinates based from the 'Affiliation' bibtex field, if present.
             _Alters the data of G_.
         """
-        nlp = spacy.load('en_core_web_sm')
+        #https://stackoverflow.com/questions/53383352/spacy-and-spacy-models-in-setup-py
+        try:
+            nlp = spacy.load('en_core_web_sm')
+        except OSError:
+            print('Downloading language model for spaCy\n'
+                "(don't worry, this will only happen once)", file=stderr)
+            from spacy.cli import download
+            download('en_core_web_sm')
+            nlp = spacy.load('en_core_web_sm')
+        
         trees = {}
         print('Compiling addresses')
         for n in tqdm(G):
