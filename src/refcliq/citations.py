@@ -150,7 +150,7 @@ def same_article(a1: dict, a2: dict)->bool:
 
 
 class CitationNetwork(nx.DiGraph):
-    def __init__(self, bibs: list=None, checkpoint_prefix: str='chk', google_key: str='', checkpoint: bool=False):
+    def __init__(self):
         nx.DiGraph.__init__(self)
         # self._G=nx.DiGraph() #the network
         self._year = {'None': set()}  # indexes
@@ -159,9 +159,6 @@ class CitationNetwork(nx.DiGraph):
         self._title = {0: set()}
         self._authorName = {0: set()}  # None might be a part of a name
         self._equivalentDOIs = {}  # yes, one paper can have more than one DOI
-        if bibs:
-            self.build(bibs, checkpoint_prefix,
-                       google_key, checkpoint=checkpoint)
 
     def save(self, filename: str):
         """Saves the citation network structure to filename"""
@@ -189,32 +186,18 @@ class CitationNetwork(nx.DiGraph):
             self.__dict__[internal] = d[saved]
 
     # @profile
-    def build(self, bibs: list, checkpoint_prefix: str='chk', google_key: str='', checkpoint: bool=False):
+    def build(self, bibs: list, google_key: str='', min_citations: int=2):
         """
         Builds a directed graph to represent the citation network of the file list bibs.
+        Ignores any references cited less than min_citation times, along with the citing papers.
         """
 
         geoCoder = ArticleGeoCoder(google_key)
-
-        checkpoint_all = checkpoint_prefix + '_bib_all.hdf5'
-        if checkpoint and exists(checkpoint_all):
-            self.load(checkpoint_all)
-            return
-
         articles = import_bibs(bibs)
 
-        checkpoint_geo = checkpoint_prefix+'_bib_geo.hdf5'
-        if checkpoint and exists(checkpoint_geo):
-            self.load(checkpoint_geo)
-        else:
-            print('citation network - Full citation in the .bibs')
-            for article in tqdm(articles):
-                citing = self.find(article)
-
-            geoCoder.add_authors_location_inplace(self)
-            print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
-            if checkpoint:
-                self.save(checkpoint_geo)
+        print('citation network - Full citation in the .bibs')
+        for article in tqdm(articles):
+            citing = self.find(article)
 
         print('citation network - Cited-References')
         for article in tqdm(articles):
@@ -222,8 +205,32 @@ class CitationNetwork(nx.DiGraph):
             for cited_article in article['references']:
                 cited = self.find(cited_article)
                 self.add_edge(citing, cited)
-        if checkpoint:
-            self.save(checkpoint_all)
+
+        to_remove = []
+        for n in self:
+            # if this article has fewer than min_citations citations AND doesn't cite anything that has more than min_citations
+            if (len(list(self.predecessors(n))) < min_citations) and (max([len(list(self.predecessors(x))) for x in self.successors(n)]) < min_citations):
+                to_remove.append(n)
+
+        for n in to_remove:
+            self._remove(n)
+
+        geoCoder.add_authors_location_inplace(self)
+        print('Outgoing geocoding calls ', geoCoder._outgoing_calls)
+
+    def remove(self, n: any):
+        """
+            Removes the node n from the network and the indices.
+        """
+        self._year[self.node[n]['index']['year']].remove(n)
+        self._authors[self.node[n]['index']['authors']].remove(n)
+        for index in self.node[n]['index']['journal']:
+            self._journal[index].remove(n)
+        for index in self.node[n]['index']['title']:
+            self._title[index].remove(n)
+        for index in self.node[n]['index']['name']:
+            self._authorName[index].remove(n)
+        self.remove_node(n)
 
     def add(self, article: dict, replaceNode: str=None)->str:
         """
@@ -248,14 +255,6 @@ class CitationNetwork(nx.DiGraph):
                 for nn in self.successors(n):
                     self.add_edge(ID, nn)
                 # removes from the indexes
-                self._year[self.node[n]['index']['year']].remove(n)
-                self._authors[self.node[n]['index']['authors']].remove(n)
-                for index in self.node[n]['index']['journal']:
-                    self._journal[index].remove(n)
-                for index in self.node[n]['index']['title']:
-                    self._title[index].remove(n)
-                for index in self.node[n]['index']['name']:
-                    self._authorName[index].remove(n)
 
                 for field in [f for f in self.node[n]['data'] if self.node[n]['data'][f]]:
                     if (field == 'abstract') and (self.node[n]['data'][field] != '') and ((field not in article) or (article[field] == '')):
@@ -265,7 +264,7 @@ class CitationNetwork(nx.DiGraph):
                     elif (field not in article) or (not article[field]):
                         article[field] = self.node[n]['data'][field]
 
-                self.remove_node(n)
+                self.remove(n)
         else:
             ID = '-'+str(len(self.nodes()))  # flags as non-DOI
 
@@ -430,7 +429,7 @@ class CitationNetwork(nx.DiGraph):
             return(self.add(article))
     # @profile
 
-    def cocitation(self, count_label: str='count', copy_data: bool=True, min_cocitations:int=1)->nx.Graph:
+    def cocitation(self, count_label: str='count', copy_data: bool=True, min_cocitations: int=1)->nx.Graph:
         """
         Builds a co-citation network from the citation network.
         G[n1][n2][count_label] stores the co-citation count. 
@@ -441,15 +440,10 @@ class CitationNetwork(nx.DiGraph):
         If the citation network has more than 500k articles, min_cocitations rises to 2.
         """
         G = nx.Graph()
-        if (len(self.nodes()) > 500000) and (min_cocitations==1):
-            print('Limiting co-citation network to 2 citations or more (memory concerns).')
-            T = 2
-        else:
-            T = min_cocitations
-
         print('Building co-citation')
         useful_nodes = [n for n in self if list(self.successors(n))]
-        useful_targets = [n for n in self if len(list(self.predecessors(n)))>=T]
+        useful_targets = [n for n in self if len(
+            list(self.predecessors(n))) >= min_cocitations]
         for citing in tqdm(useful_nodes):
             cited = [x for x in self.successors(citing) if x in useful_targets]
             for w1, w2 in combinations(cited, 2):

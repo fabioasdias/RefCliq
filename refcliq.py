@@ -37,9 +37,6 @@ if __name__ == '__main__':
     parser.add_argument("-k", type=str,
                         help="Google maps API key. Necessary for precise geocoding.",
                         dest="google_key", default='')
-    parser.add_argument("--checkpoint",  action="store_true",
-                        help="Saves checkpoint files of the processing -> read the documentation!",
-                        dest="checkpoint", default=False)
     parser.add_argument("--graphs",  action="store_true",
                         help="Saves graph drawing information for the cluster.",
                         dest="graphs", default=False)
@@ -48,18 +45,8 @@ if __name__ == '__main__':
 
     options = parser.parse_args()
 
-    # options.google_key=""
-
-    checkpoint_cn = options.output_file+'_cn.hdf5'
-    if options.checkpoint and exists(checkpoint_cn):
-        citation_network = CitationNetwork()
-        citation_network.load(checkpoint_cn)
-    else:
-        citation_network = CitationNetwork(
-            options.files, checkpoint_prefix=options.output_file, google_key=options.google_key, checkpoint=options.checkpoint)
-        if options.checkpoint:
-            print('done citation - saving')
-            citation_network.save(checkpoint_cn)
+    citation_network = CitationNetwork()
+    citation_network.build(options.files, google_key=options.google_key, min_citations=2)
 
     print('keywords')
     citation_network.compute_keywords()
@@ -67,17 +54,9 @@ if __name__ == '__main__':
     print(thous(len(citation_network))+' different references with ' +
           thous(len(citation_network.edges()))+' citations.')
 
-    checkpoint_cocn = options.output_file+'_cocn.p'
-    if options.checkpoint and exists(checkpoint_cocn):
-        co_citation_network = nx.read_gpickle(checkpoint_cocn)
-    else:
-        co_citation_network = citation_network.cocitation(
-            count_label="count", copy_data=False, min_cocitations=3)
-        print('pickle')
-        if options.checkpoint:
-            nx.write_gpickle(co_citation_network, checkpoint_cocn)
+    co_citation_network = citation_network.cocitation(
+        count_label="count", copy_data=False, min_cocitations=3)
 
-    # exit()
 
     for n in citation_network:
         citation_network.node[n]['data']['original_cc'] = -1
@@ -86,17 +65,10 @@ if __name__ == '__main__':
         for n in gg:
             citation_network.node[n]['data']['original_cc'] = i
 
-    checkpoint_part = options.output_file+'_part.p'
-    if options.checkpoint and exists(checkpoint_part):
-        with open(checkpoint_part, 'rb') as f:
-            partition = pickle.load(f)
-    else:
-        print('Partitioning')
-        partition = best_partition(
-            co_citation_network, weight='count', random_state=7)  # deterministic
-        if options.checkpoint:
-            with open(checkpoint_part, 'wb') as f:
-                pickle.dump(partition, f)
+    
+    print('Partitioning (no progress bar for this - sorry!)')
+    partition = best_partition(
+        co_citation_network, weight='count', random_state=7)  # deterministic
 
     print('Saving results')
     output = {'geocoded': options.google_key != ''}
