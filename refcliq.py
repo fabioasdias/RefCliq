@@ -21,7 +21,6 @@ from argparse import ArgumentParser
 
 from src.refcliq.citations import CitationNetwork
 from src.refcliq.util import thous
-
 import json
 from tqdm import tqdm
 import networkx as nx
