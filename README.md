@@ -111,6 +111,10 @@ The geocoded information can be displayed as markers or as a heatmap. To reduce 
 
     This project started as a fork of the original version, aiming only to add the authors' addresses information, I'm not sure if any lines from the original version are present in this project now. Python 2 and coding methodology aside (and the whole [try/except misuse](https://github.com/nealcaren/RefCliq/blob/f67fef07900e322db90ddd5ce94dc83ca8dcf10c/refcliq.py#L90)), since the original version only considers the [first author, year, and the title/journal](https://github.com/nealcaren/RefCliq/blob/f67fef07900e322db90ddd5ce94dc83ca8dcf10c/refcliq.py#L101), it merges things that should not be merged (two papers of the same author in the same journal and year). Further, the cavalier approach to text processing silently loses works in the processing, some time whole files (.bib). A more profound problem is that the co-citation count is [not considered by the Louvain clustering](https://github.com/nealcaren/RefCliq/blob/f67fef07900e322db90ddd5ce94dc83ca8dcf10c/refcliq.py#L498), so small changes in the topology of the co-citation network can *significantly* impact the clustering.
 
+* Why two scripts?
+
+    I chose to store the processed information as a json, instead of generating a bunch of static pages, because then I can fully use react and make an interactive visualization interface. Further, if/when I decide to change the interface, the results don't need to be processed again (depending on the feature), which is handy if you ran for a few hundred files and has around a million works in there. And if someone wants to use the processed result for something else, the json is easy to load and parse.
+
 * I don't want to get a Google key, is there any way to draw a map?
 
     The exported .tsv files contain country information as a field. It should be possible to break that field and use Excel or Google docs map drawing features to do a choropleth map. It is a bit tricky to match the country names provided to actual countries, which is why I didn't implement that yet. Pull requests more than welcome for this.
