@@ -1,0 +1,19 @@
+.clusters {
+    width: 50%;
+    height: 908px;
+    overflow-y: scroll;
+    border: solid;
+    border-width: thin;
+}
+.eachCluster {
+    width: 98%;
+    height: fit-content;
+    border: solid;
+    border-width: thin;
+    margin: 3px;
+    padding: 5px;
+    font-size: small;
+}
+.rv-xy-plot {
+    display: flex;
+}

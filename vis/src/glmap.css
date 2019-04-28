@@ -1,0 +1,17 @@
+.mapboxgl-map{
+    width: 790px;
+    height: 400px;
+    border: solid;
+    margin: 1px;
+    border-color: darkgray;
+    border-width: medium;
+    float: left;
+  }
+  .year-control {
+    border: solid;
+    border-width: thin;
+    background: #FFF;
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px;
+  }

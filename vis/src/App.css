@@ -1,0 +1,10 @@
+.App {
+  width: 100%;
+  height: fit-content;
+}
+.bottom {
+  width: 100%;
+  height: fit-content;
+  display: flex;
+  float: left;
+}

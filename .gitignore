@@ -1,5 +1,5 @@
 *.py[cod]
-
+*.bib
 # C extensions
 *.so
 
@@ -36,3 +36,8 @@ nosetests.xml
 .pydevproject
 
 .DS_Store
+ENV
+nlp
+out
+vis/public/data.json
+.pytest_cache

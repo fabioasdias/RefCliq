@@ -1,0 +1,34 @@
+.citing {
+    width: 800px;
+    height: fit-content;
+    border: solid;
+    border-width: thin;
+    display: block;
+}
+.abstract {
+    width: 650px;
+    margin: auto;
+}
+.map{
+    width: 790px;
+    height: 400px;
+    display: block;
+}
+.citationlist {
+    width: 100%;
+    height: 500px;
+    overflow-y: scroll;
+}
+.citationlistExtended {
+    width: 100%;
+    height: 908px;
+    overflow-y: scroll;
+}
+
+.hfill {
+    width: fit-content;
+    margin-left: auto;
+    margin-right: 10px;
+    margin-top: auto;
+    margin-bottom: auto;
+}
