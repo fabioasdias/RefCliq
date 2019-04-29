@@ -29,6 +29,8 @@ pip install refcliq
 ```
 All the dependencies will be automatically installed.
 
+It is a good idea to run a small .bib file to make sure every step of the script works before running large datasets (see the FAQ at the end).
+
 
 ## Usage:
 
