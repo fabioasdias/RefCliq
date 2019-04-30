@@ -205,32 +205,28 @@ class ArticleGeoCoder:
 
         
         for country in trees:
-            cached = _find(self._parts_by_country, country)
+            if not trees[country]:
+                continue
 
+            cached = _find(self._parts_by_country, country)
             if cached is None:
                 i = 0
                 j = 0
                 geo = []
                 while not geo:
-                    try:
-                        sample_state = list(trees[country].keys())[i]
-                        sample_city = list(trees[country][sample_state])[j]
-                        parts = [sample_city, sample_state, country]
-                        geo = self._google(parts)
-                        j += 1
-                        if j == len(trees[country][sample_state].keys()):
-                            j = 0
-                            i += 1
-                            if i == len(trees[country]):
-                                # didn't find anything, run all... very unlikely. Very.
-                                to_use = 3
-                    except:
-                        print('Could not find anything using "{0}" as a country, please check the affiliation field.'.format(
-                            country))
-                        print(
-                            '(This can happen when a author name has a dot at the end of a non-abreviation.)')
-                        # print(trees[country])
-                        raise
+                    sample_state = list(trees[country].keys())[i]
+                    sample_city = list(trees[country][sample_state])[j]
+                    parts = [sample_city, sample_state, country]
+                    geo = self._google(parts)
+                    j += 1
+                    if j == len(trees[country][sample_state].keys()):
+                        j = 0
+                        i += 1
+                        if i == len(trees[country]):
+                            print('Could not find "{0}" as a country, please check the affiliation field.'.format(country))
+                            print('(It happens when a author has a dot at the end of a long abreviation)')
+                            print(trees[country])
+                            break
                 if geo:
                     self._parts_by_country[country] = _count_useful_parts(
                         parts, geo)
@@ -239,6 +235,9 @@ class ArticleGeoCoder:
         print('Getting coordinates')
         for country in tqdm(trees):
             cached = _find(self._parts_by_country, country)
+            if cached is None:
+                continue
+
             to_use = self._parts_by_country[cached]
 
             for state in trees[country]:
