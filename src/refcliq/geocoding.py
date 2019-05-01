@@ -8,7 +8,6 @@ from time import sleep, monotonic
 from tqdm import tqdm
 import json
 import googlemaps
-import spacy
 from titlecase import titlecase
 from sys import stderr
 
@@ -131,15 +130,15 @@ class ArticleGeoCoder:
             coordinates based from the 'Affiliation' bibtex field, if present.
             _Alters the data of G_.
         """
-        #https://stackoverflow.com/questions/53383352/spacy-and-spacy-models-in-setup-py
-        try:
-            nlp = spacy.load('en_core_web_sm')
-        except OSError:
-            print('Downloading language model for spaCy\n'
-                "(don't worry, this will only happen once)", file=stderr)
-            from spacy.cli import download
-            download('en_core_web_sm')
-            nlp = spacy.load('en_core_web_sm')
+        # #https://stackoverflow.com/questions/53383352/spacy-and-spacy-models-in-setup-py
+        # try:
+        #     nlp = spacy.load('en_core_web_sm')
+        # except OSError:
+        #     print('Downloading language model for spaCy\n'
+        #         "(don't worry, this will only happen once)", file=stderr)
+        #     from spacy.cli import download
+        #     download('en_core_web_sm')
+        #     nlp = spacy.load('en_core_web_sm')
         
         trees = {}
         print('Compiling addresses')
@@ -148,34 +147,25 @@ class ArticleGeoCoder:
             G.node[n]['data']['coordinates'] = []
             addresses = []
             if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation']) > 0):
-                aff = G.node[n]['data']['Affiliation'].replace('(Reprint Author)', '').replace(
-                    ".,", ',').replace("'", '')  # O'lastname / Jesusm. / Redone.  mess sentence identification
-                doc = nlp(aff)
-                add = ''
-                for sent in doc.sents:
-                    if sent.text.endswith('.'):
-                        current = _remove_numbers(
-                            (add+' '+sent.text).strip().replace('  ', ' '))
-                        if current.endswith('.'):
-                            current = current[:-1]
-                        # special cases: NY 10012 USA / LOS ANGELES,CA.
-                        vals = [x.strip() for x in current.split(',')]
-                        # ,CA.
-                        if (len(vals[-1]) == 2) and vals[-1].upper() in _US:
-                            addresses.append(
-                                [titlecase(vals[-2]), vals[-1], 'United States'])
-                        elif (vals[-1].endswith(' USA')):
-                            addresses.append(
-                                [titlecase(vals[-2]), vals[-1].split(' ')[0], 'United States'])
-                        else:
-                            if len(vals) > 3:  # name, dept, etc
-                                addresses.append([titlecase(x)
-                                                  for x in vals[-3:]])
-                            else:
-                                addresses.append([titlecase(x) for x in vals])
-                        add = ''
+                # aff = G.node[n]['data']['Affiliation'].replace('(Reprint Author)', '').replace(
+                #     ".,", ',').replace("'", '')  # O'lastname / Jesusm. / Redone.  mess sentence identification
+                # doc = nlp(aff)
+                # add = ''
+                for add in G.node[n]['data']['Affiliation']:
+                    # special cases: NY 10012 USA / LOS ANGELES,CA.
+                    vals = [x.strip(' \n.') for x in add.split(',')]
+                    # ,CA.
+                    if (len(vals[-1]) == 2) and vals[-1].upper() in _US:
+                        addresses.append(
+                            [titlecase(vals[-2]), vals[-1], 'United States'])
+                    elif (vals[-1].upper().endswith(' USA')):
+                        addresses.append(
+                            [titlecase(vals[-2]), vals[-1].split(' ')[0], 'United States'])
                     else:
-                        add = add + ' ' + sent.text
+                        if len(vals) > 3:  # name, dept, etc
+                            addresses.append([titlecase(x) for x in vals[-3:]])
+                        else:
+                            addresses.append([titlecase(x) for x in vals])
 
                 for vals in addresses:
                     G.node[n]['data']['countries'].append(vals[-1])
