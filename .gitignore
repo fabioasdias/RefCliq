@@ -41,3 +41,5 @@ nlp
 out
 vis/public/data.json
 .pytest_cache
+*.html
+clusters/*
