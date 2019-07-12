@@ -20,7 +20,6 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from scipy.sparse import coo_matrix
 
 from os.path import exists
-import klepto
 import pickle
 
 download('stopwords')
@@ -160,30 +159,30 @@ class CitationNetwork(nx.DiGraph):
         self._authorName = {0: set()}  # None might be a part of a name
         self._equivalentDOIs = {}  # yes, one paper can have more than one DOI
 
-    def save(self, filename: str):
-        """Saves the citation network structure to filename"""
-        graph = json_graph.node_link_data(self)
-        d = klepto.archives.hdf_archive(filename, {'year': self._year,
-                                                   'authors': self._authors,
-                                                   'title': self._title,
-                                                   'authorName': self._authorName,
-                                                   'DOIs': self._equivalentDOIs,
-                                                   'graph': graph}, cached=False, serialized=True)
-        d.dump()
+    # def save(self, filename: str):
+    #     """Saves the citation network structure to filename"""
+    #     graph = json_graph.node_link_data(self)
+    #     d = klepto.archives.hdf_archive(filename, {'year': self._year,
+    #                                                'authors': self._authors,
+    #                                                'title': self._title,
+    #                                                'authorName': self._authorName,
+    #                                                'DOIs': self._equivalentDOIs,
+    #                                                'graph': graph}, cached=False, serialized=True)
+    #     d.dump()
 
-    def load(self, filename: str):
-        """Loads the citation network structure from filename"""
-        d = klepto.archives.hdf_archive(
-            filename, cached=False, serialized=True)
+    # def load(self, filename: str):
+    #     """Loads the citation network structure from filename"""
+    #     d = klepto.archives.hdf_archive(
+    #         filename, cached=False, serialized=True)
 
-        d.load('graph')
-        G = json_graph.node_link_graph(d['graph'])
-        self.add_nodes_from(G.nodes(data=True))
-        self.add_edges_from(G.edges(data=True))
+    #     d.load('graph')
+    #     G = json_graph.node_link_graph(d['graph'])
+    #     self.add_nodes_from(G.nodes(data=True))
+    #     self.add_edges_from(G.edges(data=True))
 
-        for saved, internal in [('DOIs', '_equivalentDOIs'), ('authorName', '_authorName'), ('title', '_title'), ('authors', '_authors'), ('year', '_year')]:
-            d.load(saved)
-            self.__dict__[internal] = d[saved]
+    #     for saved, internal in [('DOIs', '_equivalentDOIs'), ('authorName', '_authorName'), ('title', '_title'), ('authors', '_authors'), ('year', '_year')]:
+    #         d.load(saved)
+    #         self.__dict__[internal] = d[saved]
 
     # @profile
     def build(self, bibs: list, google_key: str='', min_citations: int=2):

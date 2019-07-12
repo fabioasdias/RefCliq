@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="refcliq",
-    version="0.1.4",
+    version="0.1.5",
     author="Fabio Dias",
     author_email="fabio.dias@gmail.com",
     description="Community analysis in bibliographical references",
@@ -34,7 +34,6 @@ setuptools.setup(
         "tqdm>=4.31.1",
         "titlecase>=0.12.0",
         "fuzzywuzzy[speedup]>=0.17.0",
-        "klepto>=0.1.6",
         "h5py>=2.9.0",
         "googlemaps>=3.0.2",
         "scikit-learn>=0.20.3"
