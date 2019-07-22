@@ -72,7 +72,6 @@ if __name__ == '__main__':
     partition = best_partition(
         co_citation_network, weight='count', random_state=7)  # deterministic
 
-    output = {} 
 
     parts = {}
     for n in partition:
@@ -93,7 +92,8 @@ if __name__ == '__main__':
 
         for n in centrality:
             citation_network.node[n]['data']['centrality'] = centrality[n]
-
+            
+    output = {} 
     output['partitions'] = parts
     # output['graphs'] = graphs
 

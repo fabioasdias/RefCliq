@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import './citingDetails.css';
 import Map from './glmap';
+import { XYPlot, VerticalBarSeries, XAxis, YAxis, LineSeries } from 'react-vis/dist';
+import verticalBarSeries from 'react-vis/dist/plot/series/vertical-bar-series';
 
 function reprAuthors(authors){
   let author='';
@@ -13,6 +15,17 @@ function reprAuthors(authors){
     }
   }
   return(author);
+}
+function reprCiteYear(c){
+  let res='';
+  let keys = Object.keys(c);
+  for (let i=0; i< keys.length; i++){
+    res=res+'('+keys[i]+','+c[keys[i]]+')';
+    if (i!==(keys.length-1)){
+      res = res +';';
+    }
+  }
+  return(res);
 }
 function reprGeo(g){
   let res='';
@@ -51,9 +64,8 @@ class CitingDetails extends Component {
       let citingID=articles[selected].cites_this[i];
       let citing=articles[citingID];
 
-      if (citing.coordinates===undefined){
-        console.log(citing);
-        continue; //WEIRD
+      if ((citing.coordinates===undefined)||(citing.coordinates.length===0)){
+        continue; 
       }
       for (let j=0; j<citing.coordinates.length; j++){
         if ((year!=='-1')&&
@@ -105,10 +117,27 @@ class CitingDetails extends Component {
   }
 
   render() {
-    let {articles,selected}=this.props;
+    let {articles,selected,cites_year}=this.props;
     let retJSX=[];
     let header=[];
-    let makeTSV = () => {
+    let makeTSVCitesYear = () => {
+      let TSV=['year\tglobal\tselection\n',];
+      let years=Object.keys(cites_year).sort();
+      for (let i=0;i<years.length;i++){
+        let line=years[i].toString()+'\t';
+        if (cites_year.hasOwnProperty(years[i])){
+          line=line+cites_year[years[i]].toString();
+        }
+        line=line+'\t';
+        if ((selected!==undefined)&&(articles[selected].cites_year.hasOwnProperty(years[i])))        {
+          line=line+articles[selected].cites_year[years[i]]
+        }
+        line=line+'\n';
+        TSV.push(line);
+      }
+      return(TSV);
+    };
+    let makeTSVCitations = () => {
       let TSV=[];
       let fields=[];
       for (let i=0; i<this.state.citingList.length; i++){
@@ -133,6 +162,9 @@ class CitingDetails extends Component {
               case 'coordinates':
                 line = line +reprGeo(article.coordinates);
                 break;
+              case 'cites_year':
+                line = line + reprCiteYear(article.cites_year);
+                break
               default:
                 line = line +reprField(article,field);
             }
@@ -146,20 +178,36 @@ class CitingDetails extends Component {
       return(TSV);
     };
     //https://stackoverflow.com/questions/44656610/download-a-string-as-txt-file-in-react
-    let downloadTxtFile = () => {
+    let downloadTxtFileCitations = () => {
       const element = document.createElement("a");
-      const file = new Blob(makeTSV(), {type: 'text/plain'});
+      const file = new Blob(makeTSVCitations(), {type: 'text/plain'});
       element.href = URL.createObjectURL(file);
       element.download = (reprAuthors(articles[selected].authors)+reprField(articles[selected],'year')+'.tsv').replace(/\s+/g, '').replace(/\.\./g,'.');
       document.body.appendChild(element); // Required for this to work in FireFox
       element.click();
     };
 
+    let downloadTxtFileCitesYear = () => {
+      const element = document.createElement("a");
+      const file = new Blob(makeTSVCitesYear(), {type: 'text/plain'});
+      element.href = URL.createObjectURL(file);
+      if (selected!==undefined){
+        element.download = (reprAuthors(articles[selected].authors)
+        +reprField(articles[selected],'year')+'.counts.tsv')
+        .replace(/\s+/g, '').replace(/\.\./g,'.');
+      }else{
+        element.download = ('total.counts.tsv');
+      }
+      document.body.appendChild(element); // Required for this to work in FireFox
+      element.click();
+    };
+
+
     if (selected!==undefined){
       header.push(<div style={{margin:'20px', display:'flex'}}>
         <h2>Works that cite: {reprAuthors(articles[selected].authors)}{reprField(articles[selected],'year')}{reprField(articles[selected],'title')}{reprField(articles[selected],'journal')}</h2>
-        {/* <div className="hfill"><button onClick={downloadTxtFile}>Export tsv file</button></div> */}
-        <div className="hfill"><button onClick={downloadTxtFile}>Export tsv file</button></div>
+        {/* <div className="hfill"><button onClick={downloadTxtFileCitations}>Export tsv file</button></div> */}
+        <div className="hfill"><button onClick={downloadTxtFileCitations}>Export tsv file</button></div>
       </div>)
     }
     if (this.state.citingList!==undefined){
@@ -183,9 +231,25 @@ class CitingDetails extends Component {
         </li>)
       }
     }
+    let all_cites_year;
+    let max_global=0;
+    if (cites_year!==undefined){
+      all_cites_year=Object.keys(cites_year).map((d)=>{
+        max_global=Math.max(max_global,cites_year[d])
+        return({x:parseInt(d,10),y:cites_year[d]});
+      });  
+    }
+    let selected_cites_year;
+    let max_selected=0;
+    if (selected!==undefined){
+      selected_cites_year=Object.keys(articles[selected].cites_year).map((d)=>{
+        max_selected=Math.max(max_selected,articles[selected].cites_year[d]);
+        return({x:parseInt(d,10),y:articles[selected].cites_year[d]});
+      });  
+    }
     return (
       <div className="citing">
-        {((this.props.geocoded!==undefined)&&(this.props.geocoded))?<div className="map">
+        <div className="map">
           <Map
             geojson={this.state.geojson}
             selected={selected}
@@ -194,56 +258,114 @@ class CitingDetails extends Component {
             fit={this.state.fit}
             cumulative={this.state.cumulative}
           />
-        </div>:null}
-
-        <div className={(this.props.geocoded)?'citationlist':'citationlistExtended'}>
-          {((this.state.yearOptions!==undefined)&&(this.props.geocoded))?
-          <div style={{display:'flex'}}>  
-            <input 
-              name="fitmap" 
-              type="checkbox"              
-              defaultChecked={this.state.fit}
-              key={'fit'}
-              onChange={(e)=>{
-                this.setState({fit: e.target.checked})}} 
-            /> Fit to markers
-            <input 
-              name="heatmap" 
-              type="checkbox"              
-              defaultChecked={this.state.heatmap}
-              key={'heat'}
-              onChange={(e)=>{
-                this.setState({heatmap: e.target.checked})}} 
-            /> Heatmap            
-              <select 
-                defaultValue={this.state.year}
-                style={{marginLeft:'20px'}}
+        </div>
+        <div style={{display: 'flex', height: 'fit-content', width: 'fit-content'}}>
+            {(this.state.yearOptions!==undefined)?
+            <div style={{display:'flex'}}>  
+              <input 
+                name="fitmap" 
+                type="checkbox"              
+                defaultChecked={this.state.fit}
+                key={'fit'}
                 onChange={(e)=>{
-                    let selYear=e.target.value;
-                    let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear, this.state.cumulative);
-                    this.setState({geojson:gj, year:selYear});
-                }} >
-                {this.state.yearOptions.map( (e) => {
-                    return(<option 
-                            value={e.id} 
-                            key={e.id} 
-                            
-                            > 
-                                {e.name}  
-                          </option>)
+                  this.setState({fit: e.target.checked})}} 
+              /> Fit to markers
+              <input 
+                name="heatmap" 
+                type="checkbox"              
+                defaultChecked={this.state.heatmap}
+                key={'heat'}
+                onChange={(e)=>{
+                  this.setState({heatmap: e.target.checked})}} 
+              /> Heatmap            
+                <select 
+                  defaultValue={this.state.year}
+                  style={{marginLeft:'20px'}}
+                  onChange={(e)=>{
+                      let selYear=e.target.value;
+                      let gj=this.updateGeoJSON(this.props.articles, this.props.selected, selYear, this.state.cumulative);
+                      this.setState({geojson:gj, year:selYear});
+                  }} >
+                  {this.state.yearOptions.map( (e) => {
+                      return(<option 
+                              value={e.id} 
+                              key={e.id} 
+                              
+                              > 
+                                  {e.name}  
+                            </option>)
+                  })}
+                </select> 
+              <input 
+                name="cumulative" 
+                type="checkbox"              
+                defaultChecked={this.state.cumulative}
+                key={'cumulative'}
+                onChange={(e)=>{
+                  let gj=this.updateGeoJSON(this.props.articles, this.props.selected, this.state.year, e.target.checked);
+                  this.setState({geojson:gj, cumulative: e.target.checked});
+                }}
+              /> Cumulative
+            </div>:null}
+          </div>
+        <div style={{border:'solid', borderWidth:'thin', borderColor:'lightgray'}}>
+          <XYPlot
+            width={790}
+            height={400}
+            margin={{left:50,right:60,top:20,bottom:60}}
+          >
+            {(selected!==undefined)?
+              <VerticalBarSeries
+                color={'green'}
+                data={selected_cites_year.map((d)=>{
+                  return({x:d.x,y:max_global*(d.y/max_selected)})
                 })}
-              </select> 
-            <input 
-              name="cumulative" 
-              type="checkbox"              
-              defaultChecked={this.state.cumulative}
-              key={'cumulative'}
-              onChange={(e)=>{
-                let gj=this.updateGeoJSON(this.props.articles, this.props.selected, this.state.year, e.target.checked);
-                this.setState({geojson:gj, cumulative: e.target.checked});
-              }}
-            /> Cumulative
-          </div>:null}
+              />:null}
+              {(cites_year!==undefined)?
+                <VerticalBarSeries
+                  data={all_cites_year}
+                  color={'blue'}
+                />:null}
+            <XAxis
+              tickLabelAngle={-30} 
+              style={{
+                text: {fontSize:'10px'}
+              }}                  
+            />
+            <YAxis        
+              style={{
+                        line: {stroke:'blue'},
+                        text: {fontSize:'10px'}
+                    }}                  
+            />
+            {(selected!==undefined)?<YAxis        
+              orientation={'right'}
+              tickFormat={v => `${Math.round(max_selected*(v/max_global))}`}                            
+              style={{  line: {stroke:'green'},
+                        text: {fontSize:'10px'}
+                    }}                  
+            />:null}
+          </XYPlot>
+          <div style={{display:'flex'}}>
+            <div style={{display:'flex', float:'left', margin: '5px'}}>
+              <div style={{margin:'auto 10px', width:'10px',height:'10px',backgroundColor:'blue'}}></div>
+              <p style={{margin: 'auto 0px'}}>Number of citations (total)    </p>
+            </div>
+            <div style={{display:'flex', float:'left', margin: '5px'}}>
+              <div style={{margin:'auto 10px', width:'10px',height:'10px',backgroundColor:'green'}}></div>
+              <p style={{margin: 'auto 0px'}}>Number of citations (selection)</p>
+            </div>        
+            <div style={{float:'right', margin:'5px'}}>
+              <button
+                onClick={downloadTxtFileCitesYear}
+              >
+                Export table
+              </button>
+            </div>      
+          </div>
+        </div>
+
+        <div className='citationlist'>
           {header}
           <div>
             <ul>

@@ -24,7 +24,7 @@ class App extends Component {
       this.setState({articles : json.articles, 
                      clusters : json.partitions,
                      graphs : json.graphs,
-                     geo : json.geocoded,
+                     cites_year : json.cites_year,
                     });
     });
   }
@@ -45,7 +45,7 @@ class App extends Component {
           <CitingDetails
             articles={this.state.articles}
             selected={this.state.selected}
-            geocoded={this.state.geo}
+            cites_year={this.state.cites_year}
           />
         </div>
       </div>
