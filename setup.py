@@ -3,7 +3,6 @@ from glob import glob
 from os.path import basename, dirname, join, splitext
 from os import walk
 
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
@@ -34,7 +33,6 @@ setuptools.setup(
         "tqdm>=4.31.1",
         "titlecase>=0.12.0",
         "fuzzywuzzy[speedup]>=0.17.0",
-        "h5py>=2.9.0",
         "googlemaps>=3.0.2",
         "scikit-learn>=0.20.3"
     ],
