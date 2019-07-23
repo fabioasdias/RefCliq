@@ -1,7 +1,8 @@
 {
   "name": "vis",
   "version": "0.1.0",
-  "private": true,
+    "private": true,
+//    "homepage" : "http://ug.daniels.utoronto.ca/~diasf/refcliq/",
   "dependencies": {
     "@turf/bbox": "^6.0.1",
     "d3-force": "^2.0.1",
