@@ -16,18 +16,19 @@ Created by Neal Caren on June 26, 2013.
 neal.caren@gmail.com
 """
 
-from community import best_partition
+import json
+import pickle
 from argparse import ArgumentParser
+from collections import defaultdict
+from os.path import exists
+
+import networkx as nx
+from community import best_partition
+from networkx.readwrite import json_graph
+from tqdm import tqdm
 
 from refcliq.citations import CitationNetwork
 from refcliq.util import thous
-
-import json
-from tqdm import tqdm
-import networkx as nx
-from networkx.readwrite import json_graph
-from os.path import exists
-import pickle
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -40,9 +41,9 @@ if __name__ == '__main__':
     parser.add_argument("-k", type=str,
                         help="Google maps API key. Necessary for precise geocoding.",
                         dest="google_key", default='')
-    parser.add_argument("--graphs",  action="store_true",
-                        help="Saves graph drawing information for the cluster.",
-                        dest="graphs", default=False)
+    # parser.add_argument("--graphs",  action="store_true",
+    #                     help="Saves graph drawing information for the cluster.",
+    #                     dest="graphs", default=False)
     parser.add_argument("files", nargs='+',
                         help="List of .bib files to process")
 
@@ -71,7 +72,6 @@ if __name__ == '__main__':
     partition = best_partition(
         co_citation_network, weight='count', random_state=7)  # deterministic
 
-    output = {'geocoded': options.google_key != ''}
 
     parts = {}
     for n in partition:
@@ -79,26 +79,27 @@ if __name__ == '__main__':
             parts[partition[n]] = []
         parts[partition[n]].append(n)
 
-    graphs = {}
-
+    # graphs = {}
     print('Per cluster analysis/data (centrality)')
     for p in tqdm(parts):
         subgraph = co_citation_network.subgraph(parts[p])
         centrality = nx.degree_centrality(subgraph)
-        if options.graphs:
-            topo = nx.Graph()
-            topo.add_nodes_from(subgraph)
-            topo.add_weighted_edges_from(subgraph.edges(data='count'))
-            graphs[p] = json_graph.node_link_data(topo)
+        # if options.graphs:
+        #     topo = nx.Graph()
+        #     topo.add_nodes_from(subgraph)
+        #     topo.add_weighted_edges_from(subgraph.edges(data='count'))
+        #     graphs[p] = json_graph.node_link_data(topo)
 
         for n in centrality:
             citation_network.node[n]['data']['centrality'] = centrality[n]
-
+            
+    output = {} 
     output['partitions'] = parts
-    output['graphs'] = graphs
+    # output['graphs'] = graphs
 
     print('Saving')
     articles = {}
+    citations_year = defaultdict(int)
     for n in tqdm(citation_network.nodes()):
         # if the work isn't cited or doesn't cite anything useful (aka is never going to show up in the interface)
         if (n not in co_citation_network) and (all([p not in co_citation_network for p in citation_network.successors(n)])):
@@ -106,6 +107,13 @@ if __name__ == '__main__':
         articles[n] = citation_network.node[n]['data']
         articles[n]['cites_this'] = [
             p for p in citation_network.predecessors(n)]
+        articles[n]['cites_year'] = defaultdict(int)
+        for p in citation_network.predecessors(n):
+            if ('year' not in citation_network.node[p]['data']) or (citation_network.node[p]['data']['year']==''):
+                continue
+            y = int(citation_network.node[p]['data']['year'])
+            articles[n]['cites_year'][y] += 1
+            citations_year[y] += 1
         articles[n]['cited_count'] = len(articles[n]['cites_this'])
         articles[n]['references'] = [p for p in citation_network.successors(n)]
         articles[n]['reference_count'] = len(articles[n]['references'])
@@ -113,12 +121,13 @@ if __name__ == '__main__':
             {'last': x.last_names, 'first': x.first_names} for x in articles[n]['authors']]
 
     output['articles'] = articles
+    output['cites_year'] = citations_year
 
     outName = options.output_file
     if not outName.endswith('.json'):
         outName = outName+'.json'
 
     with open(outName, 'w') as fout:
-        json.dump(output, fout)  # , indent=4, sort_keys=True)
+        json.dump(output, fout , indent=4, sort_keys=True)
 
     print('Run "rc_vis.py {0}" to view the results.'.format(outName))

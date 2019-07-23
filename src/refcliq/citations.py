@@ -110,8 +110,6 @@ def _merge_keywords(keywords: list, how_many_works: int)->list:
             merged[k] += v
     return([(k, merged[k]/how_many_works) for k in merged])
 
-# @profile
-
 
 def same_article(a1: dict, a2: dict)->bool:
     """
@@ -151,7 +149,6 @@ def same_article(a1: dict, a2: dict)->bool:
 class CitationNetwork(nx.DiGraph):
     def __init__(self):
         nx.DiGraph.__init__(self)
-        # self._G=nx.DiGraph() #the network
         self._year = {'None': set()}  # indexes
         self._authors = {1: set()}
         self._journal = {0: set()}
@@ -159,32 +156,6 @@ class CitationNetwork(nx.DiGraph):
         self._authorName = {0: set()}  # None might be a part of a name
         self._equivalentDOIs = {}  # yes, one paper can have more than one DOI
 
-    # def save(self, filename: str):
-    #     """Saves the citation network structure to filename"""
-    #     graph = json_graph.node_link_data(self)
-    #     d = klepto.archives.hdf_archive(filename, {'year': self._year,
-    #                                                'authors': self._authors,
-    #                                                'title': self._title,
-    #                                                'authorName': self._authorName,
-    #                                                'DOIs': self._equivalentDOIs,
-    #                                                'graph': graph}, cached=False, serialized=True)
-    #     d.dump()
-
-    # def load(self, filename: str):
-    #     """Loads the citation network structure from filename"""
-    #     d = klepto.archives.hdf_archive(
-    #         filename, cached=False, serialized=True)
-
-    #     d.load('graph')
-    #     G = json_graph.node_link_graph(d['graph'])
-    #     self.add_nodes_from(G.nodes(data=True))
-    #     self.add_edges_from(G.edges(data=True))
-
-    #     for saved, internal in [('DOIs', '_equivalentDOIs'), ('authorName', '_authorName'), ('title', '_title'), ('authors', '_authors'), ('year', '_year')]:
-    #         d.load(saved)
-    #         self.__dict__[internal] = d[saved]
-
-    # @profile
     def build(self, bibs: list, google_key: str='', min_citations: int=2):
         """
         Builds a directed graph to represent the citation network of the file list bibs.
@@ -210,7 +181,7 @@ class CitationNetwork(nx.DiGraph):
             # if this article has fewer than min_citations citations AND doesn't cite anything that has more than min_citations
             if (len(list(self.predecessors(n))) < min_citations) and ((len(list(self.successors(n))) == 0) or (max([len(list(self.predecessors(x))) for x in self.successors(n)]) < min_citations)):
                 to_remove.append(n)
-
+                
         for n in to_remove:
             self.remove(n)
 

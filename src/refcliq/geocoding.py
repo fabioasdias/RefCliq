@@ -109,7 +109,7 @@ class ArticleGeoCoder:
         # those always pose a problem
         self._parts_by_country = {'peoples r china': 3, 'United States': 3,
                                   'czech republic': 2, 'ireland': 2, 'norway': 2, 'italy': 2, 'finland': 2}
-        self._last_request = monotonic()  # keeps track of the last time we used nominatim
+        self._last_request = monotonic()  # keeps track of the last time we sent out a geocoding request
         self._outgoing_calls = 0
 
         if exists(CACHE):
@@ -129,17 +129,7 @@ class ArticleGeoCoder:
             For every node of G (a reference in the network), finds the
             coordinates based from the 'Affiliation' bibtex field, if present.
             _Alters the data of G_.
-        """
-        # #https://stackoverflow.com/questions/53383352/spacy-and-spacy-models-in-setup-py
-        # try:
-        #     nlp = spacy.load('en_core_web_sm')
-        # except OSError:
-        #     print('Downloading language model for spaCy\n'
-        #         "(don't worry, this will only happen once)", file=stderr)
-        #     from spacy.cli import download
-        #     download('en_core_web_sm')
-        #     nlp = spacy.load('en_core_web_sm')
-        
+        """        
         trees = {}
         print('Compiling addresses')
         for n in tqdm(G):
@@ -168,30 +158,29 @@ class ArticleGeoCoder:
                             addresses.append([titlecase(x) for x in vals])
 
                 for vals in addresses:
-                    G.node[n]['data']['countries'].append(vals[-1])
-                    if self._gmaps is not None:
-                        v = [x.lower() for x in vals]
-                        if len(v) < 3:
-                            v = ['', ]*(3-len(v)) + v
-                        # not really city / state / country, but it is easier to
-                        # code with names
-                        # there is probably a shorter way of doing this using defaultdicts
-                        country = _find(trees, v[-1])
-                        if country is None:
-                            country = v[-1]
-                            trees[country] = {}
+                    G.node[n]['data']['countries'].append(vals[-1])                    
+                    v = [x.lower() for x in vals]
+                    if len(v) < 3:
+                        v = ['', ]*(3-len(v)) + v
+                    # not really city / state / country, but it is easier to
+                    # code with names
+                    # there is probably a shorter way of doing this using defaultdicts
+                    country = _find(trees, v[-1])
+                    if country is None:
+                        country = v[-1]
+                        trees[country] = {}
 
-                        state = _find(trees[country], v[-2])
-                        if state is None:
-                            state = v[-2]
-                            trees[country][state] = {}
+                    state = _find(trees[country], v[-2])
+                    if state is None:
+                        state = v[-2]
+                        trees[country][state] = {}
 
-                        city = _find(trees[country][state], v[-3])
-                        if city is None:
-                            city = v[-3]
-                            trees[country][state][city] = []
+                    city = _find(trees[country][state], v[-3])
+                    if city is None:
+                        city = v[-3]
+                        trees[country][state][city] = []
 
-                        trees[country][state][city].append(n)
+                    trees[country][state][city].append(n)
 
         
         for country in trees:
@@ -199,7 +188,7 @@ class ArticleGeoCoder:
                 continue
 
             cached = _find(self._parts_by_country, country)
-            if cached is None:
+            if (cached is None) and (self._gmaps is not None):
                 i = 0
                 j = 0
                 geo = []
@@ -217,9 +206,8 @@ class ArticleGeoCoder:
                             print('(It happens when a author has a dot at the end of a long abreviation)')
                             print(trees[country])
                             break
-                if geo:
-                    self._parts_by_country[country] = _count_useful_parts(
-                        parts, geo)
+                if geo is not None:
+                    self._parts_by_country[country] = _count_useful_parts(parts, geo)
                     self._save_state()
 
         print('Getting coordinates')
@@ -235,15 +223,16 @@ class ArticleGeoCoder:
                     parts = [city, state, country][-to_use:]
                     parts = ['', ]*(3-len(parts)) + parts
                     geo = self._cache_search(parts)
-                    if geo is None:
+                    if (geo is None) and (self._gmaps is not None):
                         geo = self._google(parts)
                         if not geo:
                             continue
                         self._cache_add(parts, geo)
 
-                    for n in trees[country][state][city]:
-                        G.node[n]['data']['coordinates'].append(
-                            [geo['geometry']['location']['lng'], geo['geometry']['location']['lat']])
+                    if geo is not None:
+                        for n in trees[country][state][city]:
+                            G.node[n]['data']['coordinates'].append(
+                                [geo['geometry']['location']['lng'], geo['geometry']['location']['lat']])
 
         return(G)
 
