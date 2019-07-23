@@ -8,6 +8,7 @@ import webbrowser
 from tempfile import TemporaryDirectory
 from shutil import copytree, copy
 from os import chdir
+import os
 from os.path import join
 from imp import find_module
 
@@ -22,18 +23,32 @@ if __name__ == "__main__":
         exit(-1)
 
     with TemporaryDirectory() as basefolder:
-        print(find_module('refcliq'))
-        newRoot=join(basefolder,'refcliq')
-        copytree(join(find_module('refcliq')[1], template), newRoot)
-        copy(sys.argv[1], join(newRoot, 'data.json'))
-        chdir(newRoot)
-
-        PORT = 8080
-        Handler = http.server.SimpleHTTPRequestHandler
-        url = "http://localhost:{0}/".format(PORT)
-        webbrowser.open_new_tab(url)
-        with socketserver.TCPServer(("", PORT), Handler) as httpd:
-            print('Serving at {0}\n\nPress Ctrl+C (or Command+dot) to stop.\n\n')
+        if os.name=='nt':
+            newRoot=join(basefolder,'refcliq')
+            copytree(template, newRoot)
+            copy(sys.argv[1], join(newRoot, 'data.json'))
+            chdir(newRoot)
+            PORT = 8080
+            Handler = http.server.SimpleHTTPRequestHandler
+            url = "http://localhost:{0}/".format(PORT)
+            webbrowser.open_new_tab(url)
+            httpd=socketserver.TCPServer(("", PORT), Handler)
+            print('Press Ctrl+C (or Command+dot) to stop.\n\n')
             httpd.serve_forever()
+
+        else:
+            print(find_module('refcliq'))
+            newRoot=join(basefolder,'refcliq')
+            copytree(join(find_module('refcliq')[1], template), newRoot)
+            copy(sys.argv[1], join(newRoot, 'data.json'))
+            chdir(newRoot)
+
+            PORT = 8080
+            Handler = http.server.SimpleHTTPRequestHandler
+            url = "http://localhost:{0}/".format(PORT)
+            webbrowser.open_new_tab(url)
+            with socketserver.TCPServer(("", PORT), Handler) as httpd:
+                print('Press Ctrl+C (or Command+dot) to stop.\n\n')
+                httpd.serve_forever()
 
         
