@@ -116,6 +116,7 @@ class ArticleGeoCoder:
             with open(CACHE, 'r') as fin:
                 data = json.load(fin)
                 self._cache = data['cache']
+                print('loading cache',len(self._cache))
                 self._parts_by_country.update(data['parts'])
 
     def _save_state(self):

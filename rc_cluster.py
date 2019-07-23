@@ -17,9 +17,11 @@ neal.caren@gmail.com
 """
 
 import json
+import os
 import pickle
 from argparse import ArgumentParser
 from collections import defaultdict
+from glob import glob
 from os.path import exists
 
 import networkx as nx
@@ -44,14 +46,25 @@ if __name__ == '__main__':
     # parser.add_argument("--graphs",  action="store_true",
     #                     help="Saves graph drawing information for the cluster.",
     #                     dest="graphs", default=False)
-    parser.add_argument("files", nargs='+',
-                        help="List of .bib files to process")
+    if (os.name=='nt'):
+        parser.add_argument(type=str,
+                            help="Bib files to process (*.bib)",
+                            dest="files")
+    else:
+        parser.add_argument("files", nargs='+',
+                            help="List of .bib files to process")
+
 
     options = parser.parse_args()
+    if (os.name=='nt'):
+        bib_files=glob(options.files)
+    else:
+        bib_files=options.files
 
     citation_network = CitationNetwork()
+
     citation_network.build(
-        options.files, google_key=options.google_key, min_citations=options.cites)
+        bib_files, google_key=options.google_key, min_citations=options.cites)
 
     citation_network.compute_keywords()
 
