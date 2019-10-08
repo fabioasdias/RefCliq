@@ -290,9 +290,13 @@ class ArticleGeoCoder:
         res = self._gmaps.geocode(address)
         # with open('testing.json','r') as fin:
         #     res = json.load(fin)
+        
         if res:
             res = _filter_geocode(res[0])
-
+        # else:
+        #     print('\n Not found:\n',address)
+        #     print(res)
+        #     input('.')
         # print('google ', address)
         self._outgoing_calls += 1
         self._last_request = monotonic()

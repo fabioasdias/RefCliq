@@ -466,20 +466,21 @@ class CitationNetwork(nx.DiGraph):
 
         cv = CountVectorizer(max_df=0.85, stop_words=stop_words,
                              max_features=10000, ngram_range=(1, 3))
-        X = cv.fit_transform(corpus)
-        tfidf_transformer = TfidfTransformer(use_idf=False)
-        tfidf_transformer.fit(X)
-        # get feature names
-        feature_names = cv.get_feature_names()
+        if len(corpus)>0:                             
+            X = cv.fit_transform(corpus)
+            tfidf_transformer = TfidfTransformer(use_idf=False)
+            tfidf_transformer.fit(X)
+            # get feature names
+            feature_names = cv.get_feature_names()
 
-        for i, doc in enumerate(corpus):
-            # generate tf-idf for the given document
-            tf_idf_vector = tfidf_transformer.transform(cv.transform([doc]))
-            # sort the tf-idf vectors by descending order of scores
-            sorted_items = sort_coo(tf_idf_vector.tocoo())
-            # extract only the top n
-            self.node[useful_nodes[i]]['data'][keyword_label] = extract_topn_from_vector(
-                feature_names, sorted_items, number_of_words)
+            for i, doc in enumerate(corpus):
+                # generate tf-idf for the given document
+                tf_idf_vector = tfidf_transformer.transform(cv.transform([doc]))
+                # sort the tf-idf vectors by descending order of scores
+                sorted_items = sort_coo(tf_idf_vector.tocoo())
+                # extract only the top n
+                self.node[useful_nodes[i]]['data'][keyword_label] = extract_topn_from_vector(
+                    feature_names, sorted_items, number_of_words)
 
         print('Citing keywords')
         for n in tqdm(self):
