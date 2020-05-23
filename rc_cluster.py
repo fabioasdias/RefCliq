@@ -75,11 +75,11 @@ if __name__ == '__main__':
         count_label="count", copy_data=False, min_cocitations=options.cites)
 
     for n in citation_network:
-        citation_network.node[n]['data']['original_cc'] = -1
+        citation_network.nodes[n]['data']['original_cc'] = -1
 
     for i, gg in enumerate(nx.connected_components(co_citation_network)):
         for n in gg:
-            citation_network.node[n]['data']['original_cc'] = i
+            citation_network.nodes[n]['data']['original_cc'] = i
 
     print('\nPartitioning (no progress bar for this - sorry!)\n')
     partition = best_partition(
@@ -104,7 +104,7 @@ if __name__ == '__main__':
         #     graphs[p] = json_graph.node_link_data(topo)
 
         for n in centrality:
-            citation_network.node[n]['data']['centrality'] = centrality[n]
+            citation_network.nodes[n]['data']['centrality'] = centrality[n]
             
     output = {} 
     output['partitions'] = parts
@@ -117,14 +117,14 @@ if __name__ == '__main__':
         # if the work isn't cited or doesn't cite anything useful (aka is never going to show up in the interface)
         if (n not in co_citation_network) and (all([p not in co_citation_network for p in citation_network.successors(n)])):
             continue
-        articles[n] = citation_network.node[n]['data']
+        articles[n] = citation_network.nodes[n]['data']
         articles[n]['cites_this'] = [
             p for p in citation_network.predecessors(n)]
         articles[n]['cites_year'] = defaultdict(int)
         for p in citation_network.predecessors(n):
-            if ('year' not in citation_network.node[p]['data']) or (citation_network.node[p]['data']['year']==''):
+            if ('year' not in citation_network.nodes[p]['data']) or (citation_network.nodes[p]['data']['year']==''):
                 continue
-            y = int(citation_network.node[p]['data']['year'])
+            y = int(citation_network.nodes[p]['data']['year'])
             articles[n]['cites_year'][y] += 1
             citations_year[y] += 1
         articles[n]['cited_count'] = len(articles[n]['cites_this'])

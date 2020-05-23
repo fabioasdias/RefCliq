@@ -134,15 +134,15 @@ class ArticleGeoCoder:
         trees = {}
         print('Compiling addresses')
         for n in tqdm(G):
-            G.node[n]['data']['countries'] = []
-            G.node[n]['data']['coordinates'] = []
+            G.nodes[n]['data']['countries'] = []
+            G.nodes[n]['data']['coordinates'] = []
             addresses = []
-            if ('data' in G.node[n]) and ('Affiliation' in G.node[n]['data']) and (G.node[n]['data']['Affiliation'] is not None) and (len(G.node[n]['data']['Affiliation']) > 0):
-                # aff = G.node[n]['data']['Affiliation'].replace('(Reprint Author)', '').replace(
+            if ('data' in G.nodes[n]) and ('Affiliation' in G.nodes[n]['data']) and (G.nodes[n]['data']['Affiliation'] is not None) and (len(G.nodes[n]['data']['Affiliation']) > 0):
+                # aff = G.nodes[n]['data']['Affiliation'].replace('(Reprint Author)', '').replace(
                 #     ".,", ',').replace("'", '')  # O'lastname / Jesusm. / Redone.  mess sentence identification
                 # doc = nlp(aff)
                 # add = ''
-                for add in G.node[n]['data']['Affiliation']:
+                for add in G.nodes[n]['data']['Affiliation']:
                     # special cases: NY 10012 USA / LOS ANGELES,CA.
                     vals = [x.strip(' \n.') for x in add.split(',')]
                     # ,CA.
@@ -159,7 +159,7 @@ class ArticleGeoCoder:
                             addresses.append([titlecase(x) for x in vals])
 
                 for vals in addresses:
-                    G.node[n]['data']['countries'].append(vals[-1])                    
+                    G.nodes[n]['data']['countries'].append(vals[-1])                    
                     v = [x.lower() for x in vals]
                     if len(v) < 3:
                         v = ['', ]*(3-len(v)) + v
@@ -232,7 +232,7 @@ class ArticleGeoCoder:
 
                     if geo is not None:
                         for n in trees[country][state][city]:
-                            G.node[n]['data']['coordinates'].append(
+                            G.nodes[n]['data']['coordinates'].append(
                                 [geo['geometry']['location']['lng'], geo['geometry']['location']['lat']])
 
         return(G)

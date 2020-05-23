@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="refcliq",
-    version="0.1.10",
+    version="0.1.11",
     author="Fabio Dias",
     author_email="fabio.dias@gmail.com",
     description="Community analysis in bibliographical references",
@@ -26,15 +26,15 @@ setuptools.setup(
     # include_package_data = True,    
     scripts = ['rc_cluster.py', 'rc_vis.py'],
     install_requires = [
-        "python-louvain>=0.13",
-        "numpy>=1.16.2",
-        "pybtex>=0.22.2",
-        "nltk>=3.4",
-        "tqdm>=4.31.1",
-        "titlecase>=0.12.0",
-        "fuzzywuzzy[speedup]>=0.17.0",
-        "googlemaps>=3.0.2",
-        "scikit-learn>=0.20.3"
+        "python-louvain==0.13",
+        "numpy==1.16.2",
+        "pybtex==0.22.2",
+        "nltk==3.4",
+        "tqdm==4.31.1",
+        "titlecase==0.12.0",
+        "fuzzywuzzy[speedup]==0.18.0",
+        "googlemaps==3.0.2",
+        "scikit-learn==0.20.3"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

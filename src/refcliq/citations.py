@@ -192,13 +192,13 @@ class CitationNetwork(nx.DiGraph):
         """
             Removes the node n from the network and the indices.
         """
-        self._year[self.node[n]['index']['year']].remove(n)
-        self._authors[self.node[n]['index']['authors']].remove(n)
-        for index in self.node[n]['index']['journal']:
+        self._year[self.nodes[n]['index']['year']].remove(n)
+        self._authors[self.nodes[n]['index']['authors']].remove(n)
+        for index in self.nodes[n]['index']['journal']:
             self._journal[index].remove(n)
-        for index in self.node[n]['index']['title']:
+        for index in self.nodes[n]['index']['title']:
             self._title[index].remove(n)
-        for index in self.node[n]['index']['name']:
+        for index in self.nodes[n]['index']['name']:
             self._authorName[index].remove(n)
         self.remove_node(n)
 
@@ -226,78 +226,78 @@ class CitationNetwork(nx.DiGraph):
                     self.add_edge(ID, nn)
                 # removes from the indexes
 
-                for field in [f for f in self.node[n]['data'] if self.node[n]['data'][f]]:
-                    if (field == 'abstract') and (self.node[n]['data'][field] != '') and ((field not in article) or (article[field] == '')):
-                        article[field] = self.node[n]['data'][field]
-                    elif (field == 'authors') and len(self.node[n]['data']['authors']) > len(article['authors']):
-                        article['authors'] = self.node[n]['data']['authors'][:]
+                for field in [f for f in self.nodes[n]['data'] if self.nodes[n]['data'][f]]:
+                    if (field == 'abstract') and (self.nodes[n]['data'][field] != '') and ((field not in article) or (article[field] == '')):
+                        article[field] = self.nodes[n]['data'][field]
+                    elif (field == 'authors') and len(self.nodes[n]['data']['authors']) > len(article['authors']):
+                        article['authors'] = self.nodes[n]['data']['authors'][:]
                     elif (field not in article) or (not article[field]):
-                        article[field] = self.node[n]['data'][field]
+                        article[field] = self.nodes[n]['data'][field]
 
                 self.remove(n)
         else:
             ID = '-'+str(len(self.nodes()))  # flags as non-DOI
 
         self.add_node(ID)
-        self.node[ID]['data'] = {**article}
+        self.nodes[ID]['data'] = {**article}
 
         # store which index in the node to make update easier
-        self.node[ID]['index'] = {}
+        self.nodes[ID]['index'] = {}
 
         # if ('doi' not in article) or (article['doi'] is None):
         #     self._noDOI.append(ID)
 
         if 'year' in article:
             yearIndex = article['year']
-            self.node[ID]['index']['year'] = yearIndex
+            self.nodes[ID]['index']['year'] = yearIndex
             if yearIndex not in self._year:
                 self._year[yearIndex] = set()
             self._year[yearIndex].add(ID)
         else:
-            self.node[ID]['index']['year'] = 'None'
+            self.nodes[ID]['index']['year'] = 'None'
             self._year['None'].add(ID)
 
         # authors is the only field that always exists.
         authorIndex = len(article['authors'])
-        self.node[ID]['index']['authors'] = authorIndex
+        self.nodes[ID]['index']['authors'] = authorIndex
         if authorIndex not in self._authors:
             self._authors[authorIndex] = set()
         self._authors[authorIndex].add(ID)
 
         if ('journal' in article) and (article['journal'] is not None):
             tokens = tokens_from_sentence(article['journal'])
-            self.node[ID]['index']['journal'] = tokens
+            self.nodes[ID]['index']['journal'] = tokens
             for token in tokens:
                 if token not in self._journal:
                     self._journal[token] = set()
                 self._journal[token].add(ID)
         else:
             self._journal[0].add(ID)
-            self.node[ID]['index']['journal'] = [0, ]
+            self.nodes[ID]['index']['journal'] = [0, ]
 
         if ('title' in article) and (article['title'] is not None):
             tokens = tokens_from_sentence(article['title'])
-            self.node[ID]['index']['title'] = tokens
+            self.nodes[ID]['index']['title'] = tokens
             for token in tokens:
                 if token not in self._title:
                     self._title[token] = set()
                 self._title[token].add(ID)
         else:
             self._title[0].add(ID)
-            self.node[ID]['index']['title'] = [0, ]
+            self.nodes[ID]['index']['title'] = [0, ]
 
         if ('authors' in article) and len(article['authors']) > 0:
-            self.node[ID]['index']['name'] = set()
+            self.nodes[ID]['index']['name'] = set()
             for author in article['authors']:
                 for name in author.last_names:
                     token = name.lower()
-                    self.node[ID]['index']['name'].add(token)
+                    self.nodes[ID]['index']['name'].add(token)
                     if token not in self._authorName:
                         self._authorName[token] = set()
                     self._authorName[token].add(ID)
         else:  # no authors
             self._authorName[0].add(ID)
-            self.node[ID]['index']['name'] = [0, ]
+            self.nodes[ID]['index']['name'] = [0, ]
         return(ID)
     # @profile
 
@@ -369,7 +369,7 @@ class CitationNetwork(nx.DiGraph):
                     return(None)
 
         for n in possibles:
-            if same_article(self.node[n]['data'], article):
+            if same_article(self.nodes[n]['data'], article):
                 return(n)
         return(None)
 
@@ -427,7 +427,7 @@ class CitationNetwork(nx.DiGraph):
 
         if (copy_data):
             for n in G:
-                G.node[n]['data'] = {**self.node[n]['data']}
+                G.nodes[n]['data'] = {**self.nodes[n]['data']}
 
         return(G)
 
@@ -455,12 +455,12 @@ class CitationNetwork(nx.DiGraph):
                                                           'some', 'likely', 'findings', 'but', 'results', 'among', 'has', 'how', 'which', 'understand',
                                                           'they', 'be', 'i', 'two', 'than', 'how', 'which', 'be', 'across', 'also', 'it', 'through', 'at']))
         lemmatizer = WordNetLemmatizer()
-        useful_nodes = [n for n in self if ('data' in self.node[n]) and (
-            'abstract' in self.node[n]['data']) and (len(self.node[n]['data']['abstract']) > 0)]
+        useful_nodes = [n for n in self if ('data' in self.nodes[n]) and (
+            'abstract' in self.nodes[n]['data']) and (len(self.nodes[n]['data']['abstract']) > 0)]
 
         for n in useful_nodes:
             lemmas = [lemmatizer.lemmatize(word.translate(remove_punct), pos='s').lower(
-            ) for word in word_tokenize(self.node[n]['data']['abstract'])]
+            ) for word in word_tokenize(self.nodes[n]['data']['abstract'])]
             corpus.append(" ".join([word for word in lemmas if (
                 word not in stop_words) and (word != '')]))
 
@@ -479,7 +479,7 @@ class CitationNetwork(nx.DiGraph):
                 # sort the tf-idf vectors by descending order of scores
                 sorted_items = sort_coo(tf_idf_vector.tocoo())
                 # extract only the top n
-                self.node[useful_nodes[i]]['data'][keyword_label] = extract_topn_from_vector(
+                self.nodes[useful_nodes[i]]['data'][keyword_label] = extract_topn_from_vector(
                     feature_names, sorted_items, number_of_words)
 
         print('Citing keywords')
@@ -488,12 +488,12 @@ class CitationNetwork(nx.DiGraph):
             used_documents = 0
             for citing in self.predecessors(n):
                 # not all citing articles have abstracts
-                if keyword_label in self.node[citing]['data']:
+                if keyword_label in self.nodes[citing]['data']:
                     used_documents += 1
-                    keywords.extend(self.node[citing]['data'][keyword_label])
+                    keywords.extend(self.nodes[citing]['data'][keyword_label])
             if keywords:
                 keywords = _merge_keywords(keywords, used_documents)
                 if len(keywords) > number_of_words:
                     keywords = sorted(keywords, key=lambda x: x[1], reverse=True)[
                         :number_of_words]
-            self.node[n]['data'][citing_keywords_label] = keywords
+            self.nodes[n]['data'][citing_keywords_label] = keywords

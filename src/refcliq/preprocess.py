@@ -157,7 +157,11 @@ def import_bibs(filelist: list) -> list:
 
             bibdata = {}
             parser = bibtex.Parser()
-            bibdata = parser.parse_file(filename)
+            # The site is ignoring bibtex format, so this kludge fixes it
+            with open(filename, 'r') as fin:
+                file_contents = str(fin.read()).replace('(Last-180-days)', '-Last-180-days').replace('Early Access Date', 'Early-Access-Date')
+            
+            bibdata = parser.parse_string(file_contents)
 
             for bib_id in bibdata.entries:
                 articles.append(extract_article_info(bibdata.entries[bib_id].fields,
