@@ -9,7 +9,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="refcliq",
-    version="0.1.11",
+    version="0.1.12",
     author="Fabio Dias",
     author_email="fabio.dias@gmail.com",
     description="Community analysis in bibliographical references",
